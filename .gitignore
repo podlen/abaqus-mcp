@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+config.local.toml
+*.iso
+*.qcow2
+*.img
+*.ovpn
+*.pem
+*.odb
+*.lck
+abaqus.rpy*

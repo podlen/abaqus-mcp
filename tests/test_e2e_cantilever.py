@@ -1,6 +1,6 @@
-"""C6 end to end through the MCP tools (stdio client -> server -> ssh -> Abaqus in the VM).
+"""C6 end to end through the MCP tools (stdio client -> server -> SSH -> Abaqus in the VM).
 
-Runs only with ABAQUS_E2E=1, on a host with the VM up, config.local.toml filled in and
+Runs only with ABAQUS_E2E=1 (each call sets a temporary project directory under $HOME), on a host with the VM up, config.local.toml filled in and
 Abaqus installed. Frame: x along the beam, load in -y at the tip, bending about z.
 Expected sign: tip U2 < 0, so the test compares |U2|.
 """
@@ -9,10 +9,16 @@ import json
 import math
 import os
 import sys
+from pathlib import Path
 
 import pytest
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+
+from abaqus_mcp.config import load
+from abaqus_mcp.service import project_key
+from abaqus_mcp.transport import SshTransport
+from conftest import e2e_project
 
 pytestmark = pytest.mark.skipif(os.environ.get("ABAQUS_E2E") != "1", reason="set ABAQUS_E2E=1 (needs VM + Abaqus)")
 
@@ -63,6 +69,7 @@ def call(tool, **args):
         async with stdio_client(params) as (r, w):
             async with ClientSession(r, w) as s:
                 await s.initialize()
+                assert json.loads((await s.call_tool("set_project", {"path": str(e2e_project())})).content[0].text)["status"] == "ok"
                 res = await s.call_tool(tool, args)
                 return json.loads(res.content[0].text)
     return asyncio.run(asyncio.wait_for(go(), 3600))
@@ -103,6 +110,14 @@ def test_cantilever(tmp_path):
 
     png = call("viewport_png", job="cantilever", step_index=0)
     assert png["status"] == "ok" and os.path.getsize(png["path"]) > 0
+
+    # the PNG is in the project directory, the .odb in its VM mirror, nothing under ~/abaqus-work
+    assert png["path"].startswith(str(e2e_project() / "cantilever"))
+    assert not (Path.home() / "abaqus-work" / "cantilever").exists()
+    cfg = load()
+    t = SshTransport(cfg.ssh_host, cfg.max_output, cfg.ssh_config)
+    odb = f"{cfg.work_vm}\\{project_key(e2e_project())}\\cantilever\\cantilever.odb"
+    assert "yes" in t.run(f"if (Test-Path -LiteralPath '{odb}') {{ 'yes' }}").stdout
 
 
 def test_script_error_returns_traceback(tmp_path):

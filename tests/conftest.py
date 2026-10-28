@@ -1,4 +1,8 @@
+import atexit
+import functools
+import shutil
 import socket
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -55,9 +59,25 @@ def listener():
 
 
 @pytest.fixture
-def make(tmp_path, listener):
-    def _make(handler=None, **kw):
-        cfg = Config(license_host="127.0.0.1", license_port=kw.pop("port", listener), work_host=tmp_path / "work", **kw)
+def make(tmp_path, listener, monkeypatch):
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))  # set_project only accepts paths under $HOME
+
+    def _make(handler=None, project=True, **kw):
+        cfg = Config(license_host="127.0.0.1", license_port=kw.pop("port", listener),
+                     state_dir=tmp_path / "state", **kw)
         t = FakeTransport(handler)
-        return Service(cfg, t), t
+        svc = Service(cfg, t)
+        if project:
+            assert svc.set_project(str(home / "proj"))["status"] == "ok"
+        return svc, t
     return _make
+
+
+@functools.cache
+def e2e_project() -> Path:
+    """One project directory under $HOME for the E2E and VM tests; removed at exit."""
+    d = Path(tempfile.mkdtemp(prefix="abaqus-mcp-e2e-", dir=Path.home())).resolve()
+    atexit.register(shutil.rmtree, d, ignore_errors=True)
+    return d

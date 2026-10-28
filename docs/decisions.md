@@ -6,7 +6,7 @@
 - Sync `subprocess.run` with timeout in the transport: ssh calls are one-shot, no async needed.
 - Transport is one class with run/put/get; tests inject a fake.
 - Every VM command line is built from names matching `[A-Za-z0-9_-]` (files: no `/`, `\`, `..`): no shell injection. Remote shell is Windows PowerShell 5.1: every VM command is written as PowerShell, paths as single-quoted literals (`psq`).
-- One job = one work dir `<work_vm>\<job>` and one host dir `<work_host>/<job>`.
+- One job = one VM dir `<work_vm>\<slug>-<hash>\<job>` and one host dir `<project>/<job>`; the project is set per session with `set_project` (specs/003-vm-sandbox.md C7).
 - License guard is a TCP connect to license_host:license_port (4 s), `abaqus-vpn up` (15 s cap) once, second probe (4 s): at most 23 s.
 - `abaqus information=release` does not touch the license server, so it is not used as a probe.
 - Scripts inside Abaqus print one JSON document between markers; the server parses only that part.
@@ -43,4 +43,9 @@
 - `sum` is shadowed by `from abaqus import *` in the kernel (rejects dict_values): kernel code adds in a loop.
 - Instances cannot mix 3D and axisymmetric parts in one model, an independent instance needs an unmeshed part: the test .cae has a second model `Solid` for the 3D independent instance.
 - model_views highlights through a temporary display group coloured by the `Display group` colour mapping; `enableMultipleColors()` gave blank PNGs under noGUI, and Set/Surface colour-mapping overrides changed nothing.
-- model_views PNG names are `<job>_views[_<highlight>]_{iso,front,top}.png`; the view PNGs are fetched to <work_host>/<job>/.
+- model_views PNG names are `<job>_views[_<highlight>]_{iso,front,top}.png`; the view PNGs are fetched to <project>/<job>/.
+- Session libvirt (qemu:///session) with passt user networking and port forwards on 127.0.0.1; no system network, no static IP. Every ssh and scp call passes `-F <state_dir>/ssh_config`; `~/.ssh` is not edited (specs/003-vm-sandbox.md C2, C3).
+- Defaults live once in `src/abaqus_mcp/config.py`; `python -m abaqus_mcp.config --print` gives shell-sourceable KEY=value lines to setup.sh, bin/ and vm/*.sh. Fixed URLs and the forward address are in `vm/sources.env`.
+- `set_project` slug: characters outside `[A-Za-z0-9_-]` are dropped from the basename (`project` when nothing is left); a path outside `$HOME` after symlink resolution is refused; a new directory is created.
+- A bare file name given to `run_script`, `submit_job(inp_file, cae_file)` is looked up in the project directory; a bare `cae_file` absent there is a file already in the VM job dir.
+- `./setup.sh uninstall` asks before deleting; it refuses when `state_dir` has no `.abaqus-mcp-setup` marker, or is `$HOME`, `/`, the repo or a parent of it.

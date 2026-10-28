@@ -1,4 +1,4 @@
-# Runs inside the VM (elevated ssh session). Called by install-abaqus.sh.
+# Runs inside the VM (elevated SSH session). Called by install-abaqus.sh.
 param([Parameter(Mandatory)][string]$LicenseHost, [int]$LicensePort = 4085)
 $ErrorActionPreference = 'Stop'
 $setup = 'C:\Install\03_Abaqus2026\1\setup.exe'
@@ -18,7 +18,7 @@ $dir = 'C:\ProgramData\DassaultSystemes\Licenses'
 New-Item $dir -ItemType Directory -Force | Out-Null
 Set-Content -Path "$dir\DSLicSrv.txt" -Value "${LicenseHost}:${LicensePort}" -NoNewline -Encoding ascii
 
-# make `abaqus` resolvable for new ssh sessions
+# make `abaqus` resolvable for new SSH sessions
 $cmds = 'C:\Program Files\SIMULIA\Commands'
 $path = [Environment]::GetEnvironmentVariable('Path', 'Machine')
 if ($path -notlike "*$cmds*") { [Environment]::SetEnvironmentVariable('Path', "$path;$cmds", 'Machine') }

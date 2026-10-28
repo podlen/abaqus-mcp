@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# abaqus-vpn up|down|status: wraps the NetworkManager connection fs-abaqus (no sudo).
+# abaqus-vpn up|down|status: wraps the NetworkManager connection named by vpn_connection in the
+# config (default fs-abaqus; no sudo).
 set -uo pipefail
-CON=fs-abaqus
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+eval "$(uv run --directory "$HERE" python -m abaqus_mcp.config --print)" || exit 1
+CON="$VPN_CONNECTION"
 
 active() { nmcli -t -f NAME connection show --active | grep -qx "$CON"; }
 

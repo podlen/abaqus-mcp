@@ -1,4 +1,4 @@
-"""FastMCP stdio server exposing the ten tools."""
+"""FastMCP stdio server exposing the eleven tools."""
 from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
@@ -10,6 +10,7 @@ from .transport import SshTransport
 
 def build(svc: Service) -> FastMCP:
     mcp = FastMCP("abaqus-mcp")
+    mcp.tool()(svc.set_project)
     mcp.tool()(svc.license_check)
     mcp.tool()(svc.run_script)
     mcp.tool()(svc.submit_job)
@@ -25,7 +26,7 @@ def build(svc: Service) -> FastMCP:
 
 def main() -> None:
     cfg = config.load()
-    build(Service(cfg, SshTransport(cfg.ssh_host, cfg.max_output))).run()
+    build(Service(cfg, SshTransport(cfg.ssh_host, cfg.max_output, cfg.ssh_config))).run()
 
 
 if __name__ == "__main__":

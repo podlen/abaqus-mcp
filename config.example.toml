@@ -1,5 +1,15 @@
-# Copy to config.local.toml (git-ignored) and fill in.
+# Copy to config.local.toml (git-ignored) and fill in. Only license_host is required;
+# the commented values are the defaults (src/abaqus_mcp/config.py).
 license_host = "192.0.2.10"
 license_port = 4085
-ssh_host = "abaqus-vm"
-# abaqus_cmd = 'C:\Program Files\SIMULIA\Commands\abaqus.bat'   # default
+# vm_name = "abaqus-mcp"
+# ram_mb = 8192
+# vcpus = 6
+# disk_gb = 80
+# ssh_port = 2222                          # host side of the forward to the guest's SSH, on 127.0.0.1
+# rdp_port = 3390                          # host side of the forward to the guest's RDP, on 127.0.0.1
+# state_dir = "~/.local/share/abaqus-mcp"  # everything setup.sh creates
+# iso_dir = "~/isos"                       # optional: reuse win11-eval.iso and virtio-win.iso found here
+# vpn_connection = "fs-abaqus"             # NetworkManager connection read by bin/abaqus-vpn
+# ssh_host = "abaqus-vm"                   # Host alias in <state_dir>/ssh_config
+# abaqus_cmd = 'C:\Program Files\SIMULIA\Commands\abaqus.bat'

@@ -1,4 +1,4 @@
-"""Build the C4 test .cae files on the VM and fetch them to <work_host>/<job>/.
+"""Build the C4 test .cae files on the VM and fetch them to <project>/<job>/, project ~/abaqus-advice.
 Run: uv run python tests/advice/build.py [job ...]   (needs VM, license VPN, config.local.toml)."""
 import json
 import sys
@@ -11,7 +11,9 @@ from abaqus_mcp.transport import SshTransport
 HERE = Path(__file__).parent
 ROOT = HERE.parent.parent
 cfg = config.load()
-svc = Service(cfg, SshTransport(cfg.ssh_host, cfg.max_output))
+svc = Service(cfg, SshTransport(cfg.ssh_host, cfg.max_output, cfg.ssh_config))
+PROJECT = Path.home() / "abaqus-advice"
+svc.set_project(str(PROJECT))
 
 for job, script, cae in (("advice-billet", "build_billet.py", "advice_billet.cae"),
                          ("advice-plate", "build_plate.py", "advice_plate.cae"),
@@ -24,9 +26,9 @@ for job, script, cae in (("advice-billet", "build_billet.py", "advice_billet.cae
     print(job, r["status"], r.get("error", ""), r["traceback"])
     if r["status"] != "ok":
         raise SystemExit(1)
-    local = cfg.work_host / job / cae
+    local = PROJECT / job / cae
     svc.t.get(f"{svc._vm(job)}\\{cae}", local)
     s = svc.model_summary(job, str(local), live=False)
-    out = cfg.work_host / job / (cae[:-4] + "_summary.json")
+    out = PROJECT / job / (cae[:-4] + "_summary.json")
     out.write_text(json.dumps(s, indent=1))
     print(local, out, s.get("status"))

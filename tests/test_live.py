@@ -32,7 +32,7 @@ def test_cae_live_ok(make):
     assert part.startswith(LIVE + "\\inbox\\") and t.puts[part] == "print('hi')"
     cmd = t.commands[-1]
     assert "Move-Item" in cmd and ".py'" in cmd and "AddSeconds(7)" in cmd and "Milliseconds 250" in cmd
-    assert not list((svc.cfg.work_host / "_live").glob("*.part"))
+    assert not list((svc.cfg.state_dir / "_live").glob("*.part"))
 
 
 @pytest.mark.parametrize("age", [None, "3.5", "junk"])
@@ -88,10 +88,10 @@ def test_model_summary_live(make):
 
 def test_model_summary_cae_file_or_no_session_stays_noGUI(make, tmp_path):
     svc, t = make(live_handler())
-    t.files["C:\\abaqus-work\\jb\\_model_summary.json"] = json.dumps({"source": "jb.cae"})
+    t.files[svc.vm_root + "\\jb\\_model_summary.json"] = json.dumps({"source": "jb.cae"})
     assert svc.model_summary("jb", live=False)["source"] == "jb.cae"
     svc, t = make(live_handler(age=None))
-    t.files["C:\\abaqus-work\\jb\\_model_summary.json"] = json.dumps({"source": "jb.cae"})
+    t.files[svc.vm_root + "\\jb\\_model_summary.json"] = json.dumps({"source": "jb.cae"})
     assert svc.model_summary("jb")["source"] == "jb.cae"
 
 

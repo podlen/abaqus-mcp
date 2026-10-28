@@ -1,4 +1,4 @@
-"""Smoke tests against the live VM with the real ssh/scp transport. No Abaqus needed.
+"""Smoke tests against the live VM with the real SSH/SCP transport. No Abaqus needed.
 
 Run with ABAQUS_VM=1 (VM up, config.local.toml filled in): ABAQUS_VM=1 uv run pytest -m vm
 """
@@ -10,7 +10,7 @@ import pytest
 from abaqus_mcp.config import load
 from abaqus_mcp.service import UNREACHABLE, Service
 from abaqus_mcp.transport import SshTransport
-from conftest import closed_port
+from conftest import closed_port, e2e_project
 
 pytestmark = [pytest.mark.vm,
               pytest.mark.skipif(os.environ.get("ABAQUS_VM") != "1", reason="set ABAQUS_VM=1 (needs the VM)")]
@@ -19,8 +19,9 @@ pytestmark = [pytest.mark.vm,
 @pytest.fixture
 def svc(tmp_path):
     cfg = load()
-    cfg.work_host = tmp_path / "work"
-    return Service(cfg, SshTransport(cfg.ssh_host, cfg.max_output))
+    svc = Service(cfg, SshTransport(cfg.ssh_host, cfg.max_output, cfg.ssh_config))
+    assert svc.set_project(str(e2e_project()))["status"] == "ok"
+    return svc
 
 
 def test_scp_round_trip(svc, tmp_path):
@@ -63,12 +64,12 @@ def test_run_script_without_abaqus(svc, tmp_path):
 
 
 def test_win32_process_survives_ssh_disconnect(svc):
-    """A Win32_Process-launched child outlives the ssh session (Start-Process children do not)."""
+    """A Win32_Process-launched child outlives the SSH session (Start-Process children do not)."""
     r = svc.t.run("$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments "
                   "@{CommandLine='ping -n 30 127.0.0.1'; CurrentDirectory='C:\\'}; $r.ProcessId")
     assert r.returncode == 0, r.stderr
     pid = int(r.stdout.strip().splitlines()[-1])
-    time.sleep(3)  # the creating ssh session is closed by now
+    time.sleep(3)  # the creating SSH session is closed by now
     try:
         alive = svc.t.run(f"if (Get-Process -Id {pid} -ErrorAction SilentlyContinue) {{ 'alive' }}")
         assert "alive" in alive.stdout

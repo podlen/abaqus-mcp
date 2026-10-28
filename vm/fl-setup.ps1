@@ -7,7 +7,7 @@ foreach ($v in (Get-Volume | Where-Object { $_.FileSystemLabel -like 'virtio-win
     pnputil /add-driver "$($v.DriveLetter):\NetKVM\w11\amd64\*.inf" /install
 }
 for ($i = 0; $i -lt 60; $i++) {
-    if (Test-Connection 192.168.122.1 -Count 1 -Quiet) { break }
+    if (Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue) { break }
     Start-Sleep 3
 }
 

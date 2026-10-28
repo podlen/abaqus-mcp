@@ -1,4 +1,4 @@
-"""ssh/scp transport to the VM. Subprocess pattern (timeout, kill, bounded output)
+"""SSH and SCP transport to the VM. Subprocess pattern (timeout, kill, bounded output)
 adapted from MOBAI547800/abaqus-mcp-server abaqus_cli.py (MIT), see NOTICE.
 
 Arguments are lists, never a shell string on the host. The command string for the VM
@@ -30,8 +30,9 @@ class TransportError(RuntimeError):
 
 
 class SshTransport:
-    def __init__(self, ssh_host: str, max_output: int = 20000) -> None:
+    def __init__(self, ssh_host: str, max_output: int = 20000, ssh_config: Path | str | None = None) -> None:
         self.host = ssh_host
+        self.F = ["-F", str(ssh_config)] if ssh_config else []
         self.max_output = max_output
 
     def _exec(self, argv: list[str], timeout: float) -> RunResult:
@@ -48,15 +49,15 @@ class SshTransport:
 
     def run(self, command: str, timeout: float = 60) -> RunResult:
         """Run a PowerShell command line on the VM."""
-        return self._exec(["ssh", *_SSH_OPTS, self.host, command], timeout)
+        return self._exec(["ssh", *self.F, *_SSH_OPTS, self.host, command], timeout)
 
     def put(self, local: Path, remote: str, timeout: float = 120) -> None:
-        r = self._exec(["scp", "-q", *_SSH_OPTS, str(local), f"{self.host}:{remote.replace(chr(92), '/')}"], timeout)
+        r = self._exec(["scp", "-q", *self.F, *_SSH_OPTS, str(local), f"{self.host}:{remote.replace(chr(92), '/')}"], timeout)
         if r.returncode != 0:
-            raise TransportError(f"scp upload failed: {r.stderr.strip()}")
+            raise TransportError(f"SCP upload failed: {r.stderr.strip()}")
 
     def get(self, remote: str, local: Path, timeout: float = 120) -> None:
         local.parent.mkdir(parents=True, exist_ok=True)
-        r = self._exec(["scp", "-q", *_SSH_OPTS, f"{self.host}:{remote.replace(chr(92), '/')}", str(local)], timeout)
+        r = self._exec(["scp", "-q", *self.F, *_SSH_OPTS, f"{self.host}:{remote.replace(chr(92), '/')}", str(local)], timeout)
         if r.returncode != 0:
-            raise TransportError(f"scp download failed: {r.stderr.strip()}")
+            raise TransportError(f"SCP download failed: {r.stderr.strip()}")

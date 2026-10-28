@@ -1,6 +1,7 @@
 """Tool logic. Transport and config are injected so tests use a fake transport."""
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import socket
@@ -17,6 +18,18 @@ from .transport import TransportError
 
 UNREACHABLE = "license server unreachable"
 NO_LIVE = "no live CAE session"
+NO_PROJECT = "no project: call set_project"
+
+
+class NoProjectError(SecurityError):
+    pass
+
+
+def project_key(path: Path) -> str:
+    """`<slug>-<hash>` of a resolved project path: slug from the basename kept to [A-Za-z0-9_-],
+    hash the first 8 hex of the sha1 of the path."""
+    slug = re.sub(r"[^A-Za-z0-9_-]", "", path.name) or "project"
+    return f"{slug}-{hashlib.sha1(str(path).encode()).hexdigest()[:8]}"
 
 
 def psq(s: str) -> str:
@@ -63,13 +76,44 @@ class Service:
     def __init__(self, cfg: Config, transport) -> None:
         self.cfg = cfg
         self.t = transport
+        self.project: Path | None = None
 
     # -- paths -------------------------------------------------------------
+    def set_project(self, path: str) -> dict:
+        """Sets the analysis directory of this session; a second call switches projects. Jobs read
+        and write <path>/<job>/, input files at <path>/ are found by name, and the VM mirror is
+        C:\\abaqus-work\\<name>-<hash>\\<job>. path must be under the home directory; a new
+        directory is created."""
+        try:
+            p = Path(path).expanduser().resolve()
+            if not p.is_relative_to(Path.home().resolve()):
+                raise SecurityError(f"project path {path!r} is not under the home directory")
+            p.mkdir(parents=True, exist_ok=True)
+        except (SecurityError, OSError) as e:
+            return _error(str(e))
+        self.project = p
+        return {"status": "ok", "project": str(p), "vm_dir": self.vm_root}
+
+    def _need_project(self) -> Path:
+        if self.project is None:
+            raise NoProjectError(NO_PROJECT)
+        return self.project
+
+    @property
+    def vm_root(self) -> str:
+        return f"{self.cfg.work_vm}\\{project_key(self._need_project())}"
+
+    def _in_project(self, path: str) -> Path:
+        """Host input file: a bare name is looked up in the project directory."""
+        if "/" in path or "\\" in path or path.startswith("~"):
+            return validate_host_file(path)
+        return validate_host_file(self._need_project() / path)
+
     def _vm(self, job: str) -> str:
-        return f"{self.cfg.work_vm}\\{validate_name(job)}"
+        return f"{self.vm_root}\\{validate_name(job)}"
 
     def _host(self, job: str) -> Path:
-        d = self.cfg.work_host / validate_name(job)
+        d = self._need_project() / validate_name(job)
         d.mkdir(parents=True, exist_ok=True)
         return d
 
@@ -107,10 +151,13 @@ class Service:
 
     def _cae(self, job: str, cae_file: str) -> str:
         """A path (contains a separator or starts with ~) is uploaded from the host. A bare name
-        is a file already in the VM job dir; it is never looked up in the server's cwd."""
+        is uploaded from the project directory when it is there, else it is a file already in the
+        VM job dir; it is never looked up in the server's cwd."""
         if "/" in cae_file or "\\" in cae_file or cae_file.startswith("~"):
             return self._upload(job, validate_host_file(cae_file))
-        return validate_filename(cae_file)
+        if (self._need_project() / validate_filename(cae_file)).is_file():
+            return self._upload(job, self._need_project() / cae_file)
+        return cae_file
 
     def _upload_text(self, job: str, text: str, name: str) -> str:
         p = self._host(job) / name
@@ -178,7 +225,7 @@ class Service:
         if self._live_age() is None:
             return _error(NO_LIVE, "start CAE with bin/abaqus-gui (plug-in installed by vm/install-live-plugin.sh)")
         sid = f"{int(time.time() * 1000)}-{uuid.uuid4().hex[:6]}"
-        local = self.cfg.work_host / "_live" / f"{sid}.part"
+        local = self.cfg.state_dir / "_live" / f"{sid}.part"
         local.parent.mkdir(parents=True, exist_ok=True)
         local.write_text(script, encoding="utf-8")
         live, timeout = self._live, max(1, int(timeout))
@@ -186,7 +233,7 @@ class Service:
         out = f"{live}\\outbox\\{sid}.json"
         try:
             self.t.put(local, part)
-            # one ssh call: publish the script, poll the outbox every 0.25 s on the VM, print the result
+            # one SSH call: publish the script, poll the outbox every 0.25 s on the VM, print the result
             cmd = (f"Move-Item -LiteralPath {psq(part)} -Destination {psq(py)}; $o={psq(out)}; "
                    f"$end=(Get-Date).AddSeconds({timeout}); "
                    "while (-not (Test-Path -LiteralPath $o)) { if ((Get-Date) -gt $end) { "
@@ -226,9 +273,10 @@ class Service:
         read from the `#: ` lines this run wrote to abaqus.rpy. Write results to a file or sys.__stdout__
         to get them in `stdout`. A run is an error on `Abaqus Error:` in stdout/stderr or a non-zero exit."""
         try:
+            self._need_project()
             if (g := self._guard()):
                 return g
-            src = validate_host_file(script_path)
+            src = self._in_project(script_path)
             d = self._prep(job)
             name = self._upload(job, src)
             # fresh abaqus.rpy: only this run's lines are read back
@@ -253,8 +301,9 @@ class Service:
                    model: str = "Model-1", cpus: int = 1, background: bool = False,
                    timeout: int | None = None) -> dict:
         """Submit from a host .inp, or from a .cae: cae_file is a host path (with a directory part, or ~)
-        that is uploaded, or a bare file name already in the VM job dir."""
+        that is uploaded, or a bare name found in the project directory (else already in the VM job dir)."""
         try:
+            self._need_project()
             if bool(inp_file) == bool(cae_file):
                 return _error("give exactly one of inp_file or cae_file")
             if (g := self._guard()):
@@ -262,7 +311,7 @@ class Service:
             validate_name(model)
             d = self._prep(job)
             if inp_file:
-                inp = self._upload(job, validate_host_file(inp_file), f"{job}.inp")
+                inp = self._upload(job, self._in_project(inp_file), f"{job}.inp")
             else:
                 cae = self._cae(job, cae_file)
                 self._upload_text(job, scripts.write_inp(cae, model, job), "_write_inp.py")
@@ -277,7 +326,7 @@ class Service:
                        f"{stale}; exit 0", self.cfg.ssh_timeout)
             cmd = f"job={job} input={inp} cpus={int(cpus)} interactive"
             if background:
-                # Win32_Process.Create: the child is not tied to the ssh session (Start-Process
+                # Win32_Process.Create: the child is not tied to the SSH session (Start-Process
                 # children die when it closes, see docs/decisions.md)
                 line = f'cmd.exe /c ""{self.cfg.abaqus_cmd}" {cmd} > "{job}.log" 2>&1"'
                 ps = ("$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments "
@@ -405,6 +454,7 @@ class Service:
         try:
             if model:
                 validate_name(model)
+            self._need_project()
             if live and not cae_file and self._live_session():
                 res = self._live_json(scripts.live_summary(model))
                 if res.get("status") != "error" or res.get("error") != NO_LIVE:
@@ -423,10 +473,11 @@ class Service:
     def model_views(self, job: str, cae_file: str | None = None, model: str | None = None,
                     highlight: str | None = None, live: bool = True) -> dict:
         """Iso, front and top PNGs of the assembly (the first part when there are no instances) of a
-        .cae, optionally with one set or surface highlighted; copied to <work_host>/<job>/. cae_file
+        .cae, optionally with one set or surface highlighted; copied to <project>/<job>/. cae_file
         and model as in model_summary. Without cae_file, and with a live CAE session, the open model is
         drawn in a viewport of that session (its displayed object is restored afterwards)."""
         try:
+            self._need_project()
             for n in (model, highlight):
                 if n:
                     validate_name(n)
@@ -456,8 +507,9 @@ class Service:
 
     def viewport_png(self, job: str, step_index: int = 0, frame: int = -1, variable: str = "U",
                      invariant: str | None = None) -> dict:
-        """Render <job>.odb with noGUI printToFile; the PNG lands in ~/abaqus-work/<job>/."""
+        """Render <job>.odb with noGUI printToFile; the PNG lands in <project>/<job>/."""
         try:
+            self._need_project()
             validate_name(variable)
             if invariant:
                 validate_name(invariant)

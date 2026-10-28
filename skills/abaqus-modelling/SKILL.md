@@ -25,6 +25,9 @@ Cite only the tag of the rule you apply. A number or claim that no rule here sta
 
 ## Workflow
 
+0. Ask the user for the analysis directory of this project (an existing one with the model files, or a new
+   location under their home directory). Call `set_project(path)`. Switch projects with a second call.
+   Job tools return "no project: call set_project" until then. Input files at `<path>/` are found by name.
 1. Read the model with `model_summary(job)`.
    With a live CAE session and no `cae_file` it reads the open model, unsaved edits included.
    For a saved file pass `cae_file`.

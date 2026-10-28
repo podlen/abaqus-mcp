@@ -18,6 +18,8 @@ import pytest
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
+from conftest import e2e_project
+
 pytestmark = pytest.mark.skipif(os.environ.get("ABAQUS_E2E") != "1", reason="set ABAQUS_E2E=1 (needs VM + Abaqus)")
 
 R0, H0, SY, DISP = 10.0, 20.0, 250.0, 5.0
@@ -70,6 +72,7 @@ def call(tool, **args):
         async with stdio_client(params) as (r, w):
             async with ClientSession(r, w) as s:
                 await s.initialize()
+                assert json.loads((await s.call_tool("set_project", {"path": str(e2e_project())})).content[0].text)["status"] == "ok"
                 res = await s.call_tool(tool, args)
                 return json.loads(res.content[0].text)
     return asyncio.run(asyncio.wait_for(go(), 3600))
@@ -77,12 +80,13 @@ def call(tool, **args):
 
 def fetch(job):
     from abaqus_mcp.config import load
+    from abaqus_mcp.service import project_key
     from abaqus_mcp.transport import SshTransport
     cfg = load()
-    t = SshTransport(cfg.ssh_host)
+    t = SshTransport(cfg.ssh_host, ssh_config=cfg.ssh_config)
     FIX.mkdir(parents=True, exist_ok=True)
     for ext in ("sta", "msg", "dat"):
-        t.get(f"{cfg.work_vm}\\{job}\\{job}.{ext}", FIX / f"{job}.{ext}")
+        t.get(f"{cfg.work_vm}\\{project_key(e2e_project())}\\{job}\\{job}.{ext}", FIX / f"{job}.{ext}")
 
 
 def dat_table(job):

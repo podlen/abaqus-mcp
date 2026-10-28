@@ -52,8 +52,8 @@ C7. Project directory. The user names the analysis directory per project: existi
     first `set_project`, job tools return "no project: call set_project". `path` must resolve
     (symlinks followed) under `$HOME`. The skill's workflow starts by asking for the directory.
     check: unit tests for the slug, the hash, the `$HOME` limit and the no-project error; an E2E
-    test sets a temporary directory, runs the cantilever, and finds its .odb there and nothing
-    under `~/abaqus-work`; `grep -n set_project skills/abaqus-modelling/SKILL.md` finds the step.
+    test sets a temporary directory, runs the cantilever, and finds the files fetched to the host
+    (results JSON, PNG) in `<path>/<job>/` and the .odb in the VM mirror; nothing under `~/abaqus-work`; `grep -n set_project skills/abaqus-modelling/SKILL.md` finds the step.
 C8. Fresh-user run. Enej's friend follows the README on his own Linux machine, from clone to the
     cantilever E2E and uninstall, mostly through Claude, and fixes what breaks in a PR against this
     spec (source: Enej, 2026-10-28). check: the friend's PR or report names each README step as passed.

@@ -2,9 +2,13 @@ import os
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from abaqus_mcp import config
 
 REPO = Path(__file__).parents[1]
+# shell lines, VM defaults and setup.sh belong to the Linux host
+pytestmark = pytest.mark.skipif(os.name == "nt", reason="Linux VM host only")
 
 
 def test_print_non_default_values(tmp_path):

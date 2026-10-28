@@ -1,16 +1,29 @@
 """GUI-side logic of the live bridge, free of Abaqus imports so it can be tested without CAE.
 
-Layout of the live directory (default C:\\abaqus-work\\live, env ABAQUS_MCP_LIVE_DIR):
+Layout of the live directory (env ABAQUS_MCP_LIVE_DIR, else the first line of live_dir.txt next to
+this file, else C:\\abaqus-work\\live):
   inbox/<id>.py   script uploaded by the MCP (arrives as .part, renamed to .py when complete)
   outbox/<id>.json result written by mcp_live_kernel.run
   log/<id>.py     every script that was run, kept
+  log/<id>.json   its result, kept (the done mark: the MCP deletes the outbox file once read)
   heartbeat.txt   epoch seconds (float), rewritten about every second
 """
 import os
 import re
 import time
 
-LIVE_DIR = os.environ.get("ABAQUS_MCP_LIVE_DIR", "C:\\abaqus-work\\live")
+
+def _live_dir():
+    if os.environ.get("ABAQUS_MCP_LIVE_DIR"):
+        return os.environ["ABAQUS_MCP_LIVE_DIR"]
+    try:  # written by setup-windows.ps1 when work_vm is not the default
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "live_dir.txt")) as fh:
+            return fh.readline().strip() or "C:\\abaqus-work\\live"
+    except (IOError, OSError):
+        return "C:\\abaqus-work\\live"
+
+
+LIVE_DIR = _live_dir()
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 MAX_BUSY_S = 3600  # an in-flight script that never answers blocks the queue at most this long
 
@@ -51,7 +64,7 @@ class Dispatcher:
         """Returns the id of the script that was sent, else None."""
         if self.inflight:
             sid, t0 = self.inflight
-            if os.path.exists(os.path.join(self.live, "outbox", sid + ".json")) or self.clock() - t0 > MAX_BUSY_S:
+            if os.path.exists(os.path.join(self.live, "log", sid + ".json")) or self.clock() - t0 > MAX_BUSY_S:
                 self.inflight = None
             else:
                 return None

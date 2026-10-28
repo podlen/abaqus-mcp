@@ -1,12 +1,17 @@
 import hashlib
 import json
+import os
 import re
 import time
 from pathlib import Path
 
+import pytest
+
 from abaqus_mcp import abaqus_scripts as sc
 from abaqus_mcp.service import project_key
 from conftest import FIX, closed_port, ok
+
+posix = pytest.mark.skipif(os.name == "nt", reason="needs a /bin/sh script")
 
 TB = (FIX / "cae_error.stderr").read_text()
 OUT_ERR = "Abaqus Error: cae exited with an error.\n"
@@ -21,6 +26,7 @@ def test_license_ok_no_vpn(make):
     assert svc.license_check() == {"status": "ok", "license": "reachable", "vpn_started": False}
 
 
+@posix
 def test_license_closed_runs_vpn_once_then_errors_within_30s(make, tmp_path):
     marker = tmp_path / "calls"
     vpn = tmp_path / "abaqus-vpn"
@@ -34,6 +40,7 @@ def test_license_closed_runs_vpn_once_then_errors_within_30s(make, tmp_path):
     assert marker.read_text().split() == ["up"]
 
 
+@posix
 def test_license_vpn_reconnect_passes(make, tmp_path, monkeypatch):
     vpn = tmp_path / "abaqus-vpn"
     vpn.write_text("#!/bin/sh\nexit 0\n")

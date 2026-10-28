@@ -1,11 +1,12 @@
 """FastMCP stdio server exposing the eleven tools."""
 from __future__ import annotations
 
+import sys
+
 from mcp.server.fastmcp import FastMCP
 
-from . import config
+from . import config, transport
 from .service import Service
-from .transport import SshTransport
 
 
 def build(svc: Service) -> FastMCP:
@@ -25,8 +26,11 @@ def build(svc: Service) -> FastMCP:
 
 
 def main() -> None:
+    if sys.argv[1:] == ["--check"]:
+        from .doctor import main as check
+        sys.exit(check())
     cfg = config.load()
-    build(Service(cfg, SshTransport(cfg.ssh_host, cfg.max_output, cfg.ssh_config))).run()
+    build(Service(cfg, transport.make(cfg))).run()
 
 
 if __name__ == "__main__":

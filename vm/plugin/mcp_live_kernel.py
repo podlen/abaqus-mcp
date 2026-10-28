@@ -34,10 +34,12 @@ def run(script_path, out_path):
     except Exception:
         res["result"] = None
     res["elapsed_s"] = round(time.time() - t0, 3)
-    tmp = out_path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(res, fh)
-    os.replace(tmp, out_path)
+    # log/<id>.json stays as the done mark for the GUI dispatcher; the MCP deletes outbox/<id>.json once read
+    for path in (os.path.splitext(script_path)[0] + ".json", out_path):
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(res, fh)
+        os.replace(tmp, path)
 
 
 def status():

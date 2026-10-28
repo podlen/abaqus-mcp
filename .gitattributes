@@ -1,0 +1,2 @@
+# Windows scripts keep CRLF in every checkout and in GitHub ZIP downloads
+*.cmd -text

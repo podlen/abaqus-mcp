@@ -1,12 +1,15 @@
 """C5: job_status convergence detail on the real upsetting fixtures. Expected numbers come from
 awk/grep written from the definitions in .team/goal.md, never from the parser."""
 import json
+import os
 import subprocess
 
 import pytest
 from conftest import FIX, ok
 
 from test_tools import status_out
+
+pytestmark = pytest.mark.skipif(os.name == "nt", reason="awk/grep oracle: Linux only")
 
 U = FIX / "upsetting"
 ROW = '$1~/^[0-9]+$/ && $2~/^[0-9]+$/ && $3~/^[0-9]+U?$/ && NF>=9'

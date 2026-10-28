@@ -63,9 +63,10 @@ def make(tmp_path, listener, monkeypatch):
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))  # set_project only accepts paths under $HOME
+    monkeypatch.setenv("USERPROFILE", str(home))  # Path.home() on Windows
 
     def _make(handler=None, project=True, **kw):
-        cfg = Config(license_host="127.0.0.1", license_port=kw.pop("port", listener),
+        cfg = Config(license_host=kw.pop("license_host", "127.0.0.1"), license_port=kw.pop("port", listener),
                      state_dir=tmp_path / "state", **kw)
         t = FakeTransport(handler)
         svc = Service(cfg, t)

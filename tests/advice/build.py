@@ -6,12 +6,12 @@ from pathlib import Path
 
 from abaqus_mcp import config
 from abaqus_mcp.service import Service
-from abaqus_mcp.transport import SshTransport
+from abaqus_mcp.transport import make
 
 HERE = Path(__file__).parent
 ROOT = HERE.parent.parent
 cfg = config.load()
-svc = Service(cfg, SshTransport(cfg.ssh_host, cfg.max_output, cfg.ssh_config))
+svc = Service(cfg, make(cfg))
 PROJECT = Path.home() / "abaqus-advice"
 svc.set_project(str(PROJECT))
 

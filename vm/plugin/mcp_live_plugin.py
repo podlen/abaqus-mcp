@@ -10,7 +10,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.append(_HERE)
 
-from abaqusGui import *  # noqa: F401,F403  (FXObject, FXMAPFUNC, SEL_TIMEOUT, getAFXApp, sendCommand, ...)
+from abaqusGui import *  # noqa: F401,F403  (FXObject, FXMAPFUNC, MKUINT, SEL_TIMEOUT, getAFXApp, sendCommand, ...)
 import mcp_live_core as core
 
 TICK_MS = 500
@@ -51,7 +51,7 @@ class LiveTicker(FXObject):
         self.arm()
 
     def arm(self):
-        getAFXApp().addTimeout(TICK_MS, self, FXSEL(SEL_TIMEOUT, LiveTicker.ID_TICK))
+        getAFXApp().addTimeout(TICK_MS, self, MKUINT(LiveTicker.ID_TICK, SEL_TIMEOUT))  # FXSEL is not in abaqusGui 2026
 
     def onTick(self, sender, sel, ptr):
         try:

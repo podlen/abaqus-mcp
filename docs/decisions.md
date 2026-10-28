@@ -49,3 +49,15 @@
 - `set_project` slug: characters outside `[A-Za-z0-9_-]` are dropped from the basename (`project` when nothing is left); a path outside `$HOME` after symlink resolution is refused; a new directory is created.
 - A bare file name given to `run_script`, `submit_job(inp_file, cae_file)` is looked up in the project directory; a bare `cae_file` absent there is a file already in the VM job dir.
 - `./setup.sh uninstall` asks before deleting; it refuses when `state_dir` has no `.abaqus-mcp-setup` marker, or is `$HOME`, `/`, the repo or a parent of it.
+- Native Windows (specs/004-windows-native.md): config `transport = "local"` (default on Windows) runs the same PowerShell commands through `powershell.exe -EncodedCommand` (base64 UTF-16LE, so no command-line quoting), prefixed with UTF-8 console output and `$ProgressPreference='SilentlyContinue'`; put/get are local file copies. The Service and the tool code are unchanged.
+- On Windows the work folder stays `C:\abaqus-work` (config `work_vm`), apart from the project folder: Abaqus fails on paths with spaces or non-ASCII characters, and user folders often have both.
+- Windows licence host: config, else the first `host:port` line of `C:\ProgramData\DassaultSystemes\Licenses\DSLicSrv.txt`; with neither the probe is skipped (`not checked`). `vpn_cmd` is empty on Windows: a closed port asks the user to connect the VPN.
+- Windows Abaqus command: `abaqus` on PATH, else `C:\Program Files\SIMULIA\Commands\abaqus.bat`, else `C:\SIMULIA\Commands\abaqus.bat`.
+- The live plug-in reads its folder from `live_dir.txt` next to it (written by setup from `work_vm`); `ABAQUS_MCP_LIVE_DIR` still wins.
+- `setup-windows.cmd` starts `setup-windows.ps1` with `-ExecutionPolicy Bypass`: the default policy (Restricted) blocks a double-clicked .ps1, and changing the policy would touch the user's settings. The .cmd is stored with CRLF (`.gitattributes`).
+- Windows setup copies the skill and the plug-in (hash compare) instead of linking: symlinks need admin or Developer Mode.
+- `abaqus-mcp --check` (doctor) runs through the configured transport, so one check covers Windows and the VM; it exits 1 on any FAIL and prints a fix line per FAIL.
+- Number output from PowerShell goes through `"$(...)"` (invariant culture): under sl-SI a bare double prints `0,53` (checked in the VM). A local command past its timeout is ended with `taskkill /F /T`: `subprocess.run` on Windows kills only powershell.exe and then waits for the pipes the Abaqus children hold.
+- Transport children get `stdin=DEVNULL` and output is decoded as UTF-8: with the inherited stdin (the MCP JSON-RPC pipe) a local `abaqus cae noGUI` hung with no CPU; with the Windows code page `Ž č` came back as mojibake.
+- `tests/test_convergence.py` is skipped on Windows: its oracle is awk and grep, which Windows lacks; the parser is pure Python and covered on Linux.
+- Live plug-in timer: `addTimeout(ms, target, MKUINT(id, SEL_TIMEOUT))`; abaqusGui 2026 has no `FXSEL`. The kernel writes the result to `log/<id>.json` and `outbox/<id>.json`; the dispatcher takes `log/<id>.json` as done, since the MCP deletes the outbox file once read.

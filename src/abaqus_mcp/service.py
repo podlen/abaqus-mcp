@@ -173,10 +173,18 @@ class Service:
             return False
 
     def license_check(self) -> dict:
-        """TCP probe; on failure run `abaqus-vpn up` once and probe again (about 23 s worst case)."""
+        """TCP probe of the licence server; on failure run `abaqus-vpn up` once (when configured) and
+        probe again (about 23 s worst case). Without a known licence host the probe is skipped."""
         t0 = time.monotonic()
+        if not self.cfg.license_host:
+            return {"status": "ok", "license": "not checked", "vpn_started": False,
+                    "hint": "no license_host in config.local.toml and none in DSLicSrv.txt"}
         if self._probe(self.cfg.probe_timeout):
             return {"status": "ok", "license": "reachable", "vpn_started": False}
+        if not self.cfg.vpn_cmd:
+            return {"status": "error", "error": UNREACHABLE,
+                    "hint": f"{self.cfg.license_host}:{self.cfg.license_port} closed; connect the university VPN",
+                    "elapsed_s": round(time.monotonic() - t0, 1)}
         try:
             subprocess.run([self.cfg.vpn_cmd, "up"], capture_output=True, timeout=self.cfg.vpn_timeout)
         except (OSError, subprocess.TimeoutExpired):
@@ -200,8 +208,9 @@ class Service:
     def _live_age(self) -> float | None:
         """Heartbeat age in seconds on the VM clock (no host/VM clock skew), None when missing or stale."""
         hb = psq(self._live + "\\heartbeat.txt")
+        # "$(...)" formats with the invariant culture; a bare double prints 0,53 under sl-SI
         cmd = (f"$p={hb}; if (Test-Path -LiteralPath $p) {{ try {{ $t=[double](Get-Content -LiteralPath $p -Raw); "
-               "[math]::Round([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()/1000 - $t, 2) } catch { } }; exit 0")
+               "\"$([math]::Round([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()/1000 - $t, 2))\" } catch { } }; exit 0")
         try:
             r = self.t.run(cmd, self.cfg.live_probe_timeout)
         except TransportError:
@@ -223,7 +232,10 @@ class Service:
         C:\\abaqus-work\\live\\log on the VM."""
         t0 = time.monotonic()
         if self._live_age() is None:
-            return _error(NO_LIVE, "start CAE with bin/abaqus-gui (plug-in installed by vm/install-live-plugin.sh)")
+            hint = ("start Abaqus/CAE (`abaqus cae`); the plug-in is installed by setup-windows.cmd"
+                    if self.cfg.transport == "local" else
+                    "start CAE with bin/abaqus-gui (plug-in installed by vm/install-live-plugin.sh)")
+            return _error(NO_LIVE, hint)
         sid = f"{int(time.time() * 1000)}-{uuid.uuid4().hex[:6]}"
         local = self.cfg.state_dir / "_live" / f"{sid}.part"
         local.parent.mkdir(parents=True, exist_ok=True)

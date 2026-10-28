@@ -109,7 +109,8 @@ def test_model_views_live(make):
 def test_kernel_wrapper_output_traceback_result(tmp_path):
     s, o = tmp_path / "a.py", tmp_path / "a.json"
     s.write_text("print('x')\nresult = {'n': 2}\n")
-    kern.run(str(s), str(o))
+    kern.run(str(s), str(tmp_path / "out.json"))
+    assert json.loads((tmp_path / "out.json").read_text()) == json.loads(o.read_text())  # o: the log copy
     d = json.loads(o.read_text())
     assert d["ok"] and d["output"] == "x\n" and d["result"] == {"n": 2}
     s.write_text("print('before')\n1/0\n")
@@ -132,7 +133,7 @@ def test_dispatcher_waits_for_idle_and_one_at_a_time(tmp_path):
     assert d.tick() == "a" and len(sent) == 1 and "mcp_live_kernel.run" in sent[0]
     assert (tmp_path / "log" / "a.py").exists() and not (tmp_path / "inbox" / "a.py").exists()
     assert d.tick() is None  # a is in flight
-    (tmp_path / "outbox" / "a.json").write_text("{}")
+    (tmp_path / "log" / "a.json").write_text("{}")  # outbox/a.json already read and deleted by the MCP
     assert d.tick() == "b" and (tmp_path / "inbox" / "c.part").exists()
 
 

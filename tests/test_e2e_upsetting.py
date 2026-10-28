@@ -81,9 +81,9 @@ def call(tool, **args):
 def fetch(job):
     from abaqus_mcp.config import load
     from abaqus_mcp.service import project_key
-    from abaqus_mcp.transport import SshTransport
+    from abaqus_mcp.transport import make
     cfg = load()
-    t = SshTransport(cfg.ssh_host, ssh_config=cfg.ssh_config)
+    t = make(cfg)
     FIX.mkdir(parents=True, exist_ok=True)
     for ext in ("sta", "msg", "dat"):
         t.get(f"{cfg.work_vm}\\{project_key(e2e_project())}\\{job}\\{job}.{ext}", FIX / f"{job}.{ext}")

@@ -18,10 +18,10 @@ from mcp.client.stdio import stdio_client
 
 from abaqus_mcp.config import load
 from abaqus_mcp.service import project_key
-from abaqus_mcp.transport import SshTransport
+from abaqus_mcp.transport import make
 from conftest import e2e_project
 
-pytestmark = pytest.mark.skipif(os.environ.get("ABAQUS_E2E") != "1", reason="set ABAQUS_E2E=1 (needs VM + Abaqus)")
+pytestmark = pytest.mark.skipif(os.environ.get("ABAQUS_E2E") != "1", reason="set ABAQUS_E2E=1 (needs Abaqus: the VM or native Windows)")
 
 # Hand calc (SI: m, N, kg)
 L, A_SIDE, E, RHO, P = 1.0, 0.02, 210e9, 7850.0, 100.0
@@ -118,7 +118,7 @@ def test_cantilever(tmp_path):
     old = Path.home() / "abaqus-work" / "cantilever"  # may hold files from runs before set_project
     assert not [f for f in old.rglob("*") if f.stat().st_mtime >= start]
     cfg = load()
-    t = SshTransport(cfg.ssh_host, cfg.max_output, cfg.ssh_config)
+    t = make(cfg)
     odb = f"{cfg.work_vm}\\{project_key(e2e_project())}\\cantilever\\cantilever.odb"
     assert "yes" in t.run(f"if (Test-Path -LiteralPath '{odb}') {{ 'yes' }}").stdout
 

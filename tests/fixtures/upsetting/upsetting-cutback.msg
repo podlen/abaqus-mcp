@@ -1,6 +1,6 @@
 1
 
-   Abaqus 2026                                  Date 28-Oct-2026   Time 13:54:23
+   Abaqus 2026                                  Date 28-Oct-2026   Time 20:24:13
    For use by UL FS under license from Dassault Systemes or its subsidiary.
 
  Frictionless upsetting, half height, CAX4R                                      
@@ -139,7 +139,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  11ms
+        SOLVER ELAPSED TIME:  12ms
 
 
  ***WARNING: THE SYSTEM MATRIX HAS 12 NEGATIVE EIGENVALUES.
@@ -178,7 +178,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  13ms
+        SOLVER ELAPSED TIME:  12ms
 
 
  ***WARNING: THE SYSTEM MATRIX HAS 12 NEGATIVE EIGENVALUES.
@@ -268,7 +268,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  12ms
+        SOLVER ELAPSED TIME:  13ms
 
 
  ***WARNING: THE SYSTEM MATRIX HAS 12 NEGATIVE EIGENVALUES.
@@ -298,7 +298,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  13ms
+        SOLVER ELAPSED TIME:  12ms
 
 
  ***WARNING: THE SYSTEM MATRIX HAS 12 NEGATIVE EIGENVALUES.
@@ -458,7 +458,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  9ms
+        SOLVER ELAPSED TIME:  4ms
 
  ***WARNING: THE STRAIN INCREMENT HAS EXCEEDED FIFTY TIMES THE STRAIN TO CAUSE 
              FIRST YIELD AT 100 POINTS
@@ -484,7 +484,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  12ms
+        SOLVER ELAPSED TIME:  13ms
 
  ***WARNING: THE STRAIN INCREMENT HAS EXCEEDED FIFTY TIMES THE STRAIN TO CAUSE 
              FIRST YIELD AT 100 POINTS
@@ -522,7 +522,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  5ms
+        SOLVER ELAPSED TIME:  6ms
 
  ***WARNING: THE STRAIN INCREMENT HAS EXCEEDED FIFTY TIMES THE STRAIN TO CAUSE 
              FIRST YIELD AT 100 POINTS
@@ -548,7 +548,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  12ms
+        SOLVER ELAPSED TIME:  13ms
 
 
  ***WARNING: THE SYSTEM MATRIX HAS 4 NEGATIVE EIGENVALUES.
@@ -616,7 +616,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  5ms
+        SOLVER ELAPSED TIME:  4ms
 
  ***WARNING: THE STRAIN INCREMENT HAS EXCEEDED FIFTY TIMES THE STRAIN TO CAUSE 
              FIRST YIELD AT 100 POINTS
@@ -693,8 +693,8 @@
 
 
      JOB TIME SUMMARY
-       USER TIME (SEC)      =       3.E+00
-       SYSTEM TIME (SEC)    =       1.E-01
+       USER TIME (SEC)      =       2.E+00
+       SYSTEM TIME (SEC)    =       2.E-01
        TOTAL CPU TIME (SEC) =       3.E+00
        WALLCLOCK TIME (SEC) =            3
        MEMORY PEAK (GB)     =            0

@@ -9,6 +9,7 @@ import json
 import math
 import os
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -93,6 +94,7 @@ def test_license():
 
 
 def test_cantilever(tmp_path):
+    start = time.time()
     st = build_and_run(tmp_path, "cantilever", True)
     assert st["status"] == "completed", st
 
@@ -113,7 +115,8 @@ def test_cantilever(tmp_path):
 
     # the PNG is in the project directory, the .odb in its VM mirror, nothing under ~/abaqus-work
     assert png["path"].startswith(str(e2e_project() / "cantilever"))
-    assert not (Path.home() / "abaqus-work" / "cantilever").exists()
+    old = Path.home() / "abaqus-work" / "cantilever"  # may hold files from runs before set_project
+    assert not [f for f in old.rglob("*") if f.stat().st_mtime >= start]
     cfg = load()
     t = SshTransport(cfg.ssh_host, cfg.max_output, cfg.ssh_config)
     odb = f"{cfg.work_vm}\\{project_key(e2e_project())}\\cantilever\\cantilever.odb"

@@ -1,6 +1,6 @@
 1
 
-   Abaqus 2026                                  Date 28-Oct-2026   Time 13:53:41
+   Abaqus 2026                                  Date 28-Oct-2026   Time 20:23:15
    For use by UL FS under license from Dassault Systemes or its subsidiary.
 
 
@@ -163,13 +163,13 @@
 
 
      JOB TIME SUMMARY
-       USER TIME (SEC)      =       2.E-01
-       SYSTEM TIME (SEC)    = ************
+       USER TIME (SEC)      =       1.E-01
+       SYSTEM TIME (SEC)    =       1.E-01
        TOTAL CPU TIME (SEC) =       2.E-01
        WALLCLOCK TIME (SEC) =            0
 1
 
-   Abaqus 2026                                  Date 28-Oct-2026   Time 13:53:44
+   Abaqus 2026                                  Date 28-Oct-2026   Time 20:23:18
    For use by UL FS under license from Dassault Systemes or its subsidiary.
 
      Frictionless upsetting, half height, CAX4R                                                STEP    1  INCREMENT    1
@@ -3039,7 +3039,7 @@
 
 
      JOB TIME SUMMARY
-       USER TIME (SEC)      =       4.E+00
+       USER TIME (SEC)      =       3.E+00
        SYSTEM TIME (SEC)    =       3.E-01
        TOTAL CPU TIME (SEC) =       4.E+00
        WALLCLOCK TIME (SEC) =            4

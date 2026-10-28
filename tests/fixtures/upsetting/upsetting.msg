@@ -1,6 +1,6 @@
 1
 
-   Abaqus 2026                                  Date 28-Oct-2026   Time 13:53:44
+   Abaqus 2026                                  Date 28-Oct-2026   Time 20:23:18
    For use by UL FS under license from Dassault Systemes or its subsidiary.
 
  Frictionless upsetting, half height, CAX4R                                      
@@ -191,7 +191,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  5ms
+        SOLVER ELAPSED TIME:  1ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -224,7 +224,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  10ms
+        SOLVER ELAPSED TIME:  6ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -256,7 +256,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  9ms
+        SOLVER ELAPSED TIME:  7ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -288,7 +288,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  8ms
+        SOLVER ELAPSED TIME:  9ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -320,7 +320,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  5ms
+        SOLVER ELAPSED TIME:  6ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -352,7 +352,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  9ms
+        SOLVER ELAPSED TIME:  10ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -416,7 +416,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  9ms
+        SOLVER ELAPSED TIME:  10ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -448,7 +448,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  9ms
+        SOLVER ELAPSED TIME:  10ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -512,7 +512,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  9ms
+        SOLVER ELAPSED TIME:  10ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -544,7 +544,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  9ms
+        SOLVER ELAPSED TIME:  10ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -576,7 +576,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  8ms
+        SOLVER ELAPSED TIME:  10ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -640,7 +640,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  6ms
+        SOLVER ELAPSED TIME:  7ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -672,7 +672,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  8ms
+        SOLVER ELAPSED TIME:  10ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -704,7 +704,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  9ms
+        SOLVER ELAPSED TIME:  8ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -768,7 +768,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  8ms
+        SOLVER ELAPSED TIME:  9ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -800,7 +800,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  6ms
+        SOLVER ELAPSED TIME:  7ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -933,7 +933,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  9ms
+        SOLVER ELAPSED TIME:  10ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -965,7 +965,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  6ms
+        SOLVER ELAPSED TIME:  7ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -997,7 +997,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  9ms
+        SOLVER ELAPSED TIME:  10ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -1029,7 +1029,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  8ms
+        SOLVER ELAPSED TIME:  10ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -1349,7 +1349,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  7ms
+        SOLVER ELAPSED TIME:  9ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -1445,7 +1445,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  5ms
+        SOLVER ELAPSED TIME:  6ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -1477,7 +1477,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  9ms
+        SOLVER ELAPSED TIME:  10ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -1509,7 +1509,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  9ms
+        SOLVER ELAPSED TIME:  10ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -1573,7 +1573,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  9ms
+        SOLVER ELAPSED TIME:  10ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -1605,7 +1605,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  6ms
+        SOLVER ELAPSED TIME:  7ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -1669,7 +1669,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  10ms
+        SOLVER ELAPSED TIME:  8ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -1701,7 +1701,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  10ms
+        SOLVER ELAPSED TIME:  9ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -1733,7 +1733,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  7ms
+        SOLVER ELAPSED TIME:  9ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -1765,7 +1765,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  6ms
+        SOLVER ELAPSED TIME:  2ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -1834,7 +1834,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  9ms
+        SOLVER ELAPSED TIME:  8ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -1898,7 +1898,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  9ms
+        SOLVER ELAPSED TIME:  10ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -1930,7 +1930,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  6ms
+        SOLVER ELAPSED TIME:  7ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -1994,7 +1994,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  8ms
+        SOLVER ELAPSED TIME:  9ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -2154,7 +2154,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  9ms
+        SOLVER ELAPSED TIME:  10ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -2186,7 +2186,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  8ms
+        SOLVER ELAPSED TIME:  9ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -2250,7 +2250,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  6ms
+        SOLVER ELAPSED TIME:  7ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -2283,7 +2283,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  9ms
+        SOLVER ELAPSED TIME:  10ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -2316,7 +2316,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  7ms
+        SOLVER ELAPSED TIME:  9ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -2349,7 +2349,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  8ms
+        SOLVER ELAPSED TIME:  9ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -2415,7 +2415,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  5ms
+        SOLVER ELAPSED TIME:  6ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -2448,7 +2448,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  8ms
+        SOLVER ELAPSED TIME:  9ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -2580,7 +2580,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  6ms
+        SOLVER ELAPSED TIME:  7ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -2613,7 +2613,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  8ms
+        SOLVER ELAPSED TIME:  9ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -2712,7 +2712,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  8ms
+        SOLVER ELAPSED TIME:  9ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -2844,7 +2844,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  8ms
+        SOLVER ELAPSED TIME:  9ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -2910,7 +2910,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  5ms
+        SOLVER ELAPSED TIME:  6ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -3075,7 +3075,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  12ms
+        SOLVER ELAPSED TIME:  6ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -3108,7 +3108,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  1ms
+        SOLVER ELAPSED TIME:  9ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -3141,7 +3141,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  16ms
+        SOLVER ELAPSED TIME:  1ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -3174,7 +3174,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  9ms
+        SOLVER ELAPSED TIME:  17ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -3207,7 +3207,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  8ms
+        SOLVER ELAPSED TIME:  9ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -3306,7 +3306,7 @@
         NUMBER OF EQUATIONS:  256
         NUMBER OF RHS:        1
         NUMBER OF FLOPS:      1.423e+05
-        SOLVER ELAPSED TIME:  9ms
+        SOLVER ELAPSED TIME:  8ms
 
                CONVERGENCE CHECKS FOR EQUILIBRIUM ITERATION     1
 
@@ -3421,7 +3421,7 @@
 
 
      JOB TIME SUMMARY
-       USER TIME (SEC)      =       4.E+00
+       USER TIME (SEC)      =       3.E+00
        SYSTEM TIME (SEC)    =       3.E-01
        TOTAL CPU TIME (SEC) =       4.E+00
        WALLCLOCK TIME (SEC) =            4

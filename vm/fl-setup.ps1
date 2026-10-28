@@ -16,10 +16,18 @@ powercfg /h off
 powercfg /change standby-timeout-ac 0; powercfg /change monitor-timeout-ac 0; powercfg /change disk-timeout-ac 0
 New-Item 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Force | Out-Null
 Set-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' NoAutoUpdate 1 -Type DWord
-foreach ($s in 'wuauserv', 'UsoSvc', 'WaaSMedicSvc') {
-    Stop-Service $s -Force -ErrorAction SilentlyContinue
+# WaaSMedicSvc repairs wuauserv's start type, so it goes first; the medic and orchestrator
+# tasks are disabled too, and the failure action (restart after 60 s) is cleared.
+foreach ($s in 'WaaSMedicSvc', 'UsoSvc', 'wuauserv') {
     Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\$s" Start 4 -ErrorAction SilentlyContinue
+    Stop-Service $s -Force -ErrorAction SilentlyContinue
 }
+Set-Service wuauserv -StartupType Disabled
+sc.exe failure wuauserv reset= 0 actions= none/0 | Out-Null
+foreach ($tp in '\Microsoft\Windows\WaaSMedic\', '\Microsoft\Windows\UpdateOrchestrator\') {
+    Get-ScheduledTask -TaskPath $tp -ErrorAction SilentlyContinue | Disable-ScheduledTask -ErrorAction SilentlyContinue | Out-Null
+}
+Set-TimeZone -Id 'Central Europe Standard Time'
 
 # OpenSSH server: Windows capability, else the GitHub release zip
 if (-not (Get-Service sshd -ErrorAction SilentlyContinue)) {

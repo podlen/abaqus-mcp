@@ -115,5 +115,7 @@ def test_script_error_returns_traceback(tmp_path):
 
 def test_missing_bc_reports_msg_error(tmp_path):
     st = build_and_run(tmp_path, "cantilever-nobc", False)
+    # UNVERIFIED until the first real run: tests/fixtures/nobc.msg is hand-written, and
+    # Abaqus/Standard may report the singularity as a warning, not an error.
     assert st["status"] == "failed", st
     assert st["errors"], st

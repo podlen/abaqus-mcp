@@ -18,6 +18,7 @@ class FakeTransport:
         self.commands: list[str] = []
         self.puts: dict[str, str] = {}
         self.gets: list[str] = []
+        self.files: dict[str, str] = {}  # remote path -> text served by get
 
     def run(self, command, timeout=60):
         self.commands.append(command)
@@ -29,7 +30,7 @@ class FakeTransport:
 
     def get(self, remote, local, timeout=120):
         self.gets.append(remote)
-        Path(local).write_bytes(b"\x89PNG")
+        Path(local).write_bytes(self.files[remote].encode() if remote in self.files else b"\x89PNG")
 
 
 def ok(stdout="", stderr="", rc=0):

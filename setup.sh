@@ -3,6 +3,8 @@
 #
 #   ./setup.sh              run every stage in order
 #   ./setup.sh <stage>...   run only these stages
+#   ./setup.sh abaqus <media-dir> [--dry-run]   install Abaqus in the VM (vm/install-abaqus.sh);
+#                           listed by --list, not part of the default run (the media is an argument)
 #   ./setup.sh --list       show the stages
 #
 # Every stage is idempotent. Needs: libvirt group membership, virt-install,
@@ -29,7 +31,8 @@ WIN_URL='https://go.microsoft.com/fwlink/?linkid=2289031&clcid=0x409&culture=en-
 VIRTIO_URL=https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso
 VIRSH=(virsh -c qemu:///system)
 
-STAGES=(deps keys images answer net vm sshconfig wait)
+STAGES=(deps keys images answer net vm sshconfig wait)  # default run
+LISTED=("${STAGES[@]}" abaqus)
 
 say() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 ssh_vm() { ssh -i "$KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
@@ -198,7 +201,16 @@ stage_wait() {
     done
 }
 
-if [ "${1:-}" = "--list" ]; then printf '%s\n' "${STAGES[@]}"; exit 0; fi
+if [ "${1:-}" = "--list" ]; then printf '%s\n' "${LISTED[@]}"; exit 0; fi
+
+if [ "${1:-}" = "abaqus" ]; then
+    shift
+    dry=(); media=""
+    for a in "$@"; do if [ "$a" = "--dry-run" ]; then dry=(--dry-run); else media="$a"; fi; done
+    [ -n "$media" ] || { echo "usage: ./setup.sh abaqus <media-dir> [--dry-run]"; exit 1; }
+    say "Abaqus install from $media"
+    exec "$HERE/vm/install-abaqus.sh" "${dry[@]}" "$media"
+fi
 
 RUN=("$@"); [ ${#RUN[@]} -eq 0 ] && RUN=("${STAGES[@]}")
 for s in "${RUN[@]}"; do

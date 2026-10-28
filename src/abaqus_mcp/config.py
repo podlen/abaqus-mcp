@@ -16,6 +16,7 @@ class Config:
     ssh_host: str = "abaqus-vm"
     work_host: Path = Path.home() / "abaqus-work"
     work_vm: str = "C:\\abaqus-work"
+    abaqus_cmd: str = "C:\\Program Files\\SIMULIA\\Commands\\abaqus.bat"
     vpn_cmd: str = str(REPO / "bin" / "abaqus-vpn")
     probe_timeout: float = 4.0
     vpn_timeout: float = 15.0

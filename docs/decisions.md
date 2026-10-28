@@ -15,10 +15,14 @@
 - Job status comes from .sta/.msg/.lck text; the exit code is not trusted (a launcher can print an error and exit 0).
 - Stale .lck/.sta/.msg/.dat/.odb are deleted before submit.
 - submit_job from a .cae writes the .inp with a noGUI script, then runs the same `abaqus job=` path.
-- Background submit uses Start-Process so the ssh channel is not held.
+- Background submit uses `Invoke-CimMethod Win32_Process Create`: Start-Process children die when the ssh session closes (.critic/review-1.md).
 - viewport output name has no dot; no maximize() under noGUI.
 - Kernel scripts target Python 3.10 (SMApy/python3.10 in the 2026 install).
 - `mcp<2`: FastMCP lives in mcp 1.x; mcp 2.x renamed it.
 - Fixtures .sta/.msg are hand-written in the documented layout: no usable real files in the MIT clone, rutwikg's are AGPL.
 - E2E test is gated by ABAQUS_E2E=1 and drives the server through the stdio MCP client.
 - Install: `setup.exe --silent <UserIntentions.xml>` (flag found in InstallData/installer/inst/win_b64/code/bin/DSYInsEngine.dll); XML copied from the host install's UserIntentions_CODE.xml with the license host templated.
+- `abaqus_cmd` is the full path `C:\Program Files\SIMULIA\Commands\abaqus.bat`: no dependence on the machine PATH, sshd restarts or WMI environments. The PATH edit in install-abaqus.ps1 stays for interactive use.
+- odb_query and model_info scripts write JSON to a file in the job dir and the server fetches it: stdout is truncated at max_output.
+- fs-abaqus is split-tunnel (`ipv4.never-default yes`): a full tunnel cut other internet traffic, including the Claude API.
+- ssh ControlMaster not adopted: every call is one-shot and the VM is on a local libvirt network, so connection setup is cheap.

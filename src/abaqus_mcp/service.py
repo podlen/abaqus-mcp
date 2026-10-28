@@ -63,17 +63,35 @@ class Service:
         return d
 
     def _abq(self, vmdir: str, args: str, timeout: float):
+        a = self.cfg.abaqus_cmd
         cmd = (f"$ErrorActionPreference='Stop'; Set-Location -LiteralPath {psq(vmdir)}; "
-               "if (-not (Get-Command abaqus -ErrorAction SilentlyContinue)) "
-               "{ [Console]::Error.WriteLine('abaqus not found on the VM PATH'); exit 127 }; "
-               f"$ErrorActionPreference='Continue'; & abaqus {args}; exit $LASTEXITCODE")
+               f"if (-not (Test-Path -LiteralPath {psq(a)})) "
+               f"{{ [Console]::Error.WriteLine({psq('abaqus not found on the VM: ' + a)}); exit 127 }}; "
+               f"$ErrorActionPreference='Continue'; & {psq(a)} {args}; exit $LASTEXITCODE")
         return self.t.run(cmd, timeout)
+
+    def _fetch_json(self, job: str, d: str, name: str) -> dict | None:
+        """Fetch the JSON file an Abaqus-side script wrote into the job dir."""
+        local = self._host(job) / name
+        local.unlink(missing_ok=True)
+        try:
+            self.t.get(f"{d}\\{name}", local)
+            return json.loads(local.read_text())
+        except (TransportError, OSError, ValueError):
+            return None
 
     def _upload(self, job: str, host_file: Path, name: str | None = None) -> str:
         d = self._vm(job)
         name = name or host_file.name
         self.t.put(host_file, f"{d}\\{validate_filename(name)}")
         return name
+
+    def _cae(self, job: str, cae_file: str) -> str:
+        """A path (contains a separator or starts with ~) is uploaded from the host. A bare name
+        is a file already in the VM job dir; it is never looked up in the server's cwd."""
+        if "/" in cae_file or "\\" in cae_file or cae_file.startswith("~"):
+            return self._upload(job, validate_host_file(cae_file))
+        return validate_filename(cae_file)
 
     def _upload_text(self, job: str, text: str, name: str) -> str:
         p = self._host(job) / name
@@ -109,7 +127,8 @@ class Service:
 
     # -- tools -------------------------------------------------------------
     def run_script(self, job: str, script_path: str, timeout: int | None = None) -> dict:
-        """Upload a .py to the job dir and run `abaqus cae noGUI=<script>`."""
+        """Executes arbitrary Python in Abaqus/CAE on the VM: uploads a .py to the job dir and runs
+        `abaqus cae noGUI=<script>`."""
         try:
             if (g := self._guard()):
                 return g
@@ -130,7 +149,8 @@ class Service:
     def submit_job(self, job: str, inp_file: str | None = None, cae_file: str | None = None,
                    model: str = "Model-1", cpus: int = 1, background: bool = False,
                    timeout: int | None = None) -> dict:
-        """Submit from a host .inp, or from a .cae (host path, or file name already in the job dir)."""
+        """Submit from a host .inp, or from a .cae: cae_file is a host path (with a directory part, or ~)
+        that is uploaded, or a bare file name already in the VM job dir."""
         try:
             if bool(inp_file) == bool(cae_file):
                 return _error("give exactly one of inp_file or cae_file")
@@ -141,8 +161,7 @@ class Service:
             if inp_file:
                 inp = self._upload(job, validate_host_file(inp_file), f"{job}.inp")
             else:
-                p = Path(cae_file).expanduser()
-                cae = self._upload(job, validate_host_file(p)) if p.is_file() else validate_filename(cae_file)
+                cae = self._cae(job, cae_file)
                 self._upload_text(job, scripts.write_inp(cae, model, job), "_write_inp.py")
                 w = self._abq(d, "cae noGUI=_write_inp.py", self.cfg.script_timeout)
                 if w.returncode != 0 or not _json_from(w.stdout):
@@ -150,12 +169,18 @@ class Service:
                                   _traceback(w.stderr + w.stdout) or truncate(w.stderr, 2000))
                 inp = f"{job}.inp"
             # stale files from an earlier run would fake a status (prior-art: rutwikg _clear_stale)
+            stale = ",".join(psq(f"{job}{e}") for e in (".lck", ".sta", ".msg", ".dat", ".odb"))
             self.t.run(f"Set-Location -LiteralPath {psq(d)}; Remove-Item -ErrorAction SilentlyContinue "
-                       f"{job}.lck,{job}.sta,{job}.msg,{job}.dat,{job}.odb; exit 0", self.cfg.ssh_timeout)
+                       f"{stale}; exit 0", self.cfg.ssh_timeout)
             cmd = f"job={job} input={inp} cpus={int(cpus)} interactive"
             if background:
-                ps = (f"Start-Process -WindowStyle Hidden -WorkingDirectory {psq(d)} "
-                      f"-FilePath cmd.exe -ArgumentList '/c','abaqus {cmd} > {job}.log 2>&1'")
+                # Win32_Process.Create: the child is not tied to the ssh session (Start-Process
+                # children die when it closes, see .critic/review-1.md)
+                line = f'cmd.exe /c ""{self.cfg.abaqus_cmd}" {cmd} > "{job}.log" 2>&1"'
+                ps = ("$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments "
+                      f"@{{CommandLine={psq(line)}; CurrentDirectory={psq(d)}}}; "
+                      "if ($r.ReturnValue -ne 0) { [Console]::Error.WriteLine('Create failed: ' + $r.ReturnValue); exit 1 }; "
+                      "$r.ProcessId")
                 r = self.t.run(ps, self.cfg.ssh_timeout)
                 return {"status": "started" if r.returncode == 0 else "error", "job": job,
                         "hint": "poll with job_status", "stderr": r.stderr}
@@ -174,9 +199,9 @@ class Service:
         try:
             d = self._vm(job)
             def part(tag, f):
-                return f"'==={tag}==='; if (Test-Path {f}) {{ Get-Content {f} }}; "
+                return f"'==={tag}==='; if (Test-Path {psq(f)}) {{ Get-Content {psq(f)} }}; "
             cmd = (f"Set-Location -LiteralPath {psq(d)}; " + part("STA", f"{job}.sta") + part("MSG", f"{job}.msg")
-                   + f"'===LCK==='; if (Test-Path {job}.lck) {{ 'yes' }}; '===END==='")
+                   + f"'===LCK==='; if (Test-Path {psq(job + '.lck')}) {{ 'yes' }}; '===END==='")
             r = self.t.run(cmd, self.cfg.ssh_timeout)
         except (SecurityError, TransportError) as e:
             return _error(str(e))
@@ -207,13 +232,17 @@ class Service:
         return out
 
     def _python_json(self, job: str, script: str, name: str, cae: bool = False) -> dict:
+        """Run a script that writes <name>.json (P["result"]) into the job dir; fetch and parse it."""
         d = self._vm(job)
+        out = name.replace(".py", ".json")
         self._upload_text(job, script, name)
+        self.t.run(f"Remove-Item -LiteralPath {psq(d + chr(92) + out)} -ErrorAction SilentlyContinue; exit 0",
+                   self.cfg.ssh_timeout)
         # odbAccess needs only `abaqus python` (no CAE token); mdb needs the CAE kernel
         r = self._abq(d, f"cae noGUI={name}" if cae else f"python {name}", self.cfg.script_timeout)
-        data = _json_from(r.stdout)
+        data = self._fetch_json(job, d, out)
         if data is None:
-            return _error("no JSON in Abaqus output", _traceback(r.stderr + r.stdout) or truncate(r.stderr, 2000))
+            return _error("no JSON file from Abaqus", _traceback(r.stderr + r.stdout) or truncate(r.stderr, 2000))
         return data if "error" not in data else {"status": "error", **data}
 
     def odb_query(self, job: str, step: str, frame: int = -1, variable: str | None = "U",
@@ -225,7 +254,7 @@ class Service:
                 if n:
                     validate_name(n)
             self._prep(job)
-            s = scripts.odb_query(f"{job}.odb", step, frame, variable, set_name, component, max_values)
+            s = scripts.odb_query(f"{job}.odb", step, frame, variable, set_name, component, max_values, "_odb_query.json")
             res = self._python_json(job, s, "_odb_query.py")
         except (SecurityError, TransportError) as e:
             return _error(str(e))
@@ -233,27 +262,28 @@ class Service:
         return res
 
     def model_info(self, job: str, cae_file: str | None = None) -> dict:
-        """Parts, sets, steps and materials of a .cae (host path, or name in the job dir)."""
+        """Parts, sets, steps and materials of a .cae: cae_file is a host path (with a directory part,
+        or ~) that is uploaded, or a bare name already in the VM job dir. Default <job>.cae."""
         try:
             if (g := self._guard()):
                 return g
             self._prep(job)
             cae = f"{job}.cae"
             if cae_file:
-                p = Path(cae_file).expanduser()
-                cae = self._upload(job, validate_host_file(p)) if p.is_file() else validate_filename(cae_file)
-            res = self._python_json(job, scripts.model_info(cae), "_model_info.py", cae=True)
+                cae = self._cae(job, cae_file)
+            res = self._python_json(job, scripts.model_info(cae, "_model_info.json"), "_model_info.py", cae=True)
         except (SecurityError, TransportError) as e:
             return _error(str(e))
         res.setdefault("status", "ok")
         return res
 
     def viewport_png(self, job: str, step_index: int = 0, frame: int = -1, variable: str = "U",
-                     invariant: str = "Magnitude") -> dict:
+                     invariant: str | None = None) -> dict:
         """Render <job>.odb with noGUI printToFile; the PNG lands in ~/abaqus-work/<job>/."""
         try:
             validate_name(variable)
-            validate_name(invariant)
+            if invariant:
+                validate_name(invariant)
             if (g := self._guard()):
                 return g
             d = self._prep(job)

@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-_NAME = re.compile(r"[A-Za-z0-9_-]{1,64}")
+_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,63}")
 _FILE = re.compile(r"[A-Za-z0-9_-][A-Za-z0-9_.-]{0,100}")
 
 
@@ -17,9 +17,9 @@ class SecurityError(ValueError):
 
 
 def validate_name(name: str) -> str:
-    """Job / model / set name: letters, digits, '_' and '-' only (no dot, see printToFile)."""
+    """Job / model / set name: a letter first, then letters, digits, '_' and '-' (no dot, see printToFile)."""
     if not _NAME.fullmatch(name or ""):
-        raise SecurityError(f"invalid name {name!r}: use letters, digits, _ and - (max 64)")
+        raise SecurityError(f"invalid name {name!r}: start with a letter, then letters, digits, _ and - (max 64)")
     return name
 
 

@@ -36,8 +36,14 @@ def test_scp_round_trip(svc, tmp_path):
 
 
 def test_license_check_brings_vpn_up(svc):
-    r = svc.license_check()
-    assert r["status"] == "ok", r
+    import subprocess
+    was_up = svc._probe(svc.cfg.probe_timeout)
+    try:
+        r = svc.license_check()
+        assert r["status"] == "ok", r
+    finally:
+        if not was_up:  # tear down only what this test brought up
+            subprocess.run([svc.cfg.vpn_cmd, "down"], capture_output=True, timeout=30)
 
 
 def test_license_check_closed_port_fast(svc):
@@ -53,3 +59,17 @@ def test_run_script_without_abaqus(svc, tmp_path):
     r = svc.run_script("smoke", str(s))
     assert r["status"] == "error", r
     assert r["exit_code"] == 127 and "abaqus not found" in r["stderr"] and not r["timed_out"]
+
+
+def test_win32_process_survives_ssh_disconnect(svc):
+    """A Win32_Process-launched child outlives the ssh session (Start-Process children do not)."""
+    r = svc.t.run("$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments "
+                  "@{CommandLine='ping -n 30 127.0.0.1'; CurrentDirectory='C:\\'}; $r.ProcessId")
+    assert r.returncode == 0, r.stderr
+    pid = int(r.stdout.strip().splitlines()[-1])
+    time.sleep(3)  # the creating ssh session is closed by now
+    try:
+        alive = svc.t.run(f"if (Get-Process -Id {pid} -ErrorAction SilentlyContinue) {{ 'alive' }}")
+        assert "alive" in alive.stdout
+    finally:
+        svc.t.run(f"Stop-Process -Id {pid} -Force -ErrorAction SilentlyContinue; exit 0")

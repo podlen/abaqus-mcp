@@ -56,7 +56,7 @@ def test_run_script_ok_and_traceback(make, tmp_path):
     assert r["status"] == "error" and r["exit_code"] == 1
     assert r["traceback"].endswith("NameError: name 'x' is not defined") and "NameError" in r["error"]
     assert t.puts["C:\\abaqus-work\\job1\\bad.py"] == "x"
-    assert any(c.rstrip().endswith("abaqus cae noGUI=bad.py; exit $LASTEXITCODE") for c in t.commands)
+    assert any(c.rstrip().endswith("abaqus.bat' cae noGUI=bad.py; exit $LASTEXITCODE") for c in t.commands)
     svc2, _ = make(lambda c: ok("done"))
     assert svc2.run_script("job1", str(s))["status"] == "ok"
 
@@ -91,7 +91,7 @@ def test_submit_inp_foreground(make, tmp_path):
     r = svc.submit_job("jb", inp_file=str(inp))
     assert r["status"] == "completed" and r["exit_code"] == 0
     assert "C:\\abaqus-work\\jb\\jb.inp" in t.puts
-    assert any("abaqus job=jb input=jb.inp cpus=1 interactive" in c for c in t.commands)
+    assert any("abaqus.bat' job=jb input=jb.inp cpus=1 interactive" in c for c in t.commands)
     assert any("Remove-Item" in c and "jb.lck" in c for c in t.commands)
 
 
@@ -102,7 +102,10 @@ def test_submit_cae_background(make, tmp_path):
     r = svc.submit_job("jb", cae_file=str(cae), model="Model-1", background=True)
     assert r["status"] == "started"
     assert '\\"cae\\": \\"m.cae\\"' in t.puts["C:\\abaqus-work\\jb\\_write_inp.py"]
-    assert any("Start-Process" in c and "abaqus job=jb input=jb.inp" in c for c in t.commands)
+    bg = [c for c in t.commands if "Win32_Process" in c]
+    assert bg and "Invoke-CimMethod" in bg[0] and "Start-Process" not in bg[0]
+    assert "CurrentDirectory='C:\\abaqus-work\\jb'" in bg[0]
+    assert 'abaqus.bat" job=jb input=jb.inp cpus=1 interactive > "jb.log" 2>&1' in bg[0]
 
 
 def test_submit_argument_check(make):
@@ -114,30 +117,82 @@ def _json(d):
     return ok(f"banner\n{sc.START}\n{json.dumps(d)}\n{sc.END}\n")
 
 
+ODB_JSON = "C:\\abaqus-work\\jb\\_odb_query.json"
+
+
 def test_odb_query(make):
     data = {"step": "Step-1", "n_frames": 2, "frames": [], "values": [{"label": 21, "data": -0.0119}]}
-    svc, t = make(lambda c: _json(data))
+    svc, t = make()
+    t.files[ODB_JSON] = json.dumps(data)
     r = svc.odb_query("jb", "Step-1", variable="U", set_name="TIP", component="U2")
     assert r["status"] == "ok" and r["values"][0]["data"] == -0.0119
     script = t.puts["C:\\abaqus-work\\jb\\_odb_query.py"]
     assert "readOnly=True" in script and '\\"component\\": \\"U2\\"' in script
-    assert t.commands[-1].rstrip().endswith("abaqus python _odb_query.py; exit $LASTEXITCODE")
+    assert '\\"result\\": \\"_odb_query.json\\"' in script
+    assert t.commands[-1].rstrip().endswith("odb_query.py; exit $LASTEXITCODE") and " python _odb_query.py" in t.commands[-1]
     compile(script, "s", "exec")
 
 
+def test_odb_query_over_300_rows_not_truncated(make):
+    rows = [{"label": i, "data": [0.1 * i, 0.0, 0.0]} for i in range(1, 501)]
+    data = {"step": "S", "n_frames": 1, "frames": [], "n_values": 500, "values": rows}
+    # stdout is bounded by the transport (max_output); the rows travel in the file
+    svc, t = make(lambda c: ok("x" * 50000) if " python " in c else None)
+    t.files[ODB_JSON] = json.dumps(data)
+    r = svc.odb_query("jb", "S", max_values=500)
+    assert r["status"] == "ok" and len(r["values"]) == 500 and r["values"][-1]["label"] == 500
+
+
 def test_odb_query_error_and_bad_input(make):
-    svc, _ = make(lambda c: _json({"error": "set not found: X"}))
+    svc, t = make()
+    t.files[ODB_JSON] = json.dumps({"error": "set not found: X"})
     assert svc.odb_query("jb", "Step-1", set_name="X")["status"] == "error"
     assert svc.odb_query("jb", "Step 1")["status"] == "error"
-    svc, _ = make(lambda c: ok("no json", TB, 1) if "python" in c else None)
+    svc, _ = make(lambda c: ok("no json", TB, 1) if " python " in c else None)
     r = svc.odb_query("jb", "Step-1")
     assert r["status"] == "error" and "NameError" in r["hint"]
 
 
 def test_model_info(make):
-    svc, t = make(lambda c: _json({"models": {"Model-1": {"steps": {}}}}))
+    svc, t = make()
+    t.files["C:\\abaqus-work\\jb\\_model_info.json"] = json.dumps({"models": {"Model-1": {"steps": {}}}})
     r = svc.model_info("jb")
-    assert "Model-1" in r["models"] and t.commands[-1].rstrip().endswith("abaqus cae noGUI=_model_info.py; exit $LASTEXITCODE")
+    assert "Model-1" in r["models"] and t.commands[-1].rstrip().endswith("cae noGUI=_model_info.py; exit $LASTEXITCODE")
+
+
+def test_abaqus_cmd_full_path_and_missing(make):
+    svc, t = make(abaqus_cmd="D:\\x y\\abaqus.bat")
+    svc._abq("C:\\w", "information=release", 5)
+    c = t.commands[-1]
+    assert "Test-Path -LiteralPath 'D:\\x y\\abaqus.bat'" in c and "& 'D:\\x y\\abaqus.bat' information=release" in c
+    assert "abaqus not found" in c and "exit 127" in c
+
+
+def test_bare_cae_name_not_resolved_against_cwd(make, tmp_path, monkeypatch):
+    (tmp_path / "bare.cae").write_text("host copy")
+    monkeypatch.chdir(tmp_path)
+    svc, t = make()
+    svc.model_info("jb", cae_file="bare.cae")
+    assert not any(k.endswith("bare.cae") for k in t.puts)
+    assert '\\"cae\\": \\"bare.cae\\"' in t.puts["C:\\abaqus-work\\jb\\_model_info.py"]
+    svc.model_info("jb", cae_file=str(tmp_path / "bare.cae"))
+    assert "C:\\abaqus-work\\jb\\bare.cae" in t.puts
+
+
+def test_name_must_start_with_letter(make):
+    svc, t = make()
+    assert svc.job_status("-Force")["status"] == "error" and svc.job_status("1a")["status"] == "error"
+    assert t.commands == []
+
+
+def test_scripts_frame_and_viewport_rules():
+    q = sc.odb_query("a.odb", "S", result="r.json")
+    assert "len(step.frames)" in q
+    v = sc.viewport("a.odb", "o")
+    assert "CONTOURS_ON_DEF" in v and "from abaqus import *" in v and "Magnitude\"" in v and "len(odb.steps[sname].frames)" in v
+    for m in (sc.model_info("a.cae"), sc.write_inp("a.cae", "M", "j")):
+        assert "mdb = openMdb(pathName=" in m and "from abaqus import *" in m
+    assert "element_sets" not in sc.model_info("a.cae")
 
 
 def test_viewport_png(make):

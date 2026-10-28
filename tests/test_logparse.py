@@ -14,8 +14,9 @@ def test_sta_states():
 
 def test_msg_errors():
     m = parse_msg((FIX / "nobc.msg").read_text())
-    assert m["n_errors"] == 2 and "NUMERICAL SINGULARITY" in m["errors"][0] and "D.O.F. 1" in m["errors"][0]
-    assert m["n_warnings"] == 1
+    # excerpt of a real Abaqus/Standard 2026 run without BCs: the singularity is a warning
+    assert m["n_errors"] == 1 and "TOO MANY ATTEMPTS" in m["errors"][0]
+    assert m["n_warnings"] == 2 and "NUMERICAL SINGULARITY" in m["warnings"][0]
     assert parse_msg((FIX / "ok.msg").read_text())["n_errors"] == 0
 
 

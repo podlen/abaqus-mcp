@@ -7,7 +7,7 @@ import time
 
 import pytest
 
-from abaqus_mcp.config import Config, load
+from abaqus_mcp.config import load
 from abaqus_mcp.service import UNREACHABLE, Service
 from abaqus_mcp.transport import SshTransport
 from conftest import closed_port
@@ -54,6 +54,7 @@ def test_license_check_closed_port_fast(svc):
 
 
 def test_run_script_without_abaqus(svc, tmp_path):
+    svc.cfg.abaqus_cmd = "C:\\Program Files\\SIMULIA\\Commands\\missing.bat"
     s = tmp_path / "noop.py"
     s.write_text("print('hi')\n")
     r = svc.run_script("smoke", str(s))

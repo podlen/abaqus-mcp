@@ -35,6 +35,6 @@ run scp "$TMP/UserIntentions_CODE.xml" "$HERE/install-abaqus.ps1" "$VM:$DEST/"
 
 # 2. silent install + DSLS license file, then check the release
 run ssh -o BatchMode=yes -o ServerAliveInterval=30 "$VM" \
-    "& 'C:\Install\install-abaqus.ps1' -LicenseHost '$LICENSE_HOST' -LicensePort $LICENSE_PORT; exit \$LASTEXITCODE"
+    "powershell -NoProfile -ExecutionPolicy Bypass -File C:\Install\install-abaqus.ps1 -LicenseHost '$LICENSE_HOST' -LicensePort $LICENSE_PORT"
 
 echo "done: check with  ssh $VM abaqus information=release   (expect 2026)"

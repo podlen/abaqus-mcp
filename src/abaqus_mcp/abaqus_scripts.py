@@ -24,9 +24,9 @@ def _emit(d):
         with open(P["result"], "w") as fh:
             json.dump(d, fh)
         return
-    print("%s")
-    print(json.dumps(d))
-    print("%s")
+    # print() and sys.stderr go to abaqus.rpy under cae noGUI; only sys.__stdout__ reaches stdout
+    sys.__stdout__.write("%s\\n" + json.dumps(d) + "\\n%s\\n")
+    sys.__stdout__.flush()
 ''' % ("{start}", "{end}")
 
 
@@ -44,7 +44,7 @@ try:
     step = odb.steps[P["step"]]
     frames = [{"index": i, "description": f.description,
                "frequency": _num(f.frequency) if hasattr(f, "frequency") and f.frequency is not None else None}
-              for i, f in enumerate(step.frames[:50])]
+              for i, f in ((i, step.frames[i]) for i in range(min(50, len(step.frames))))]
     out = {"step": P["step"], "n_frames": len(step.frames), "frames": frames}
     if P["variable"]:
         fi = P["frame"] + len(step.frames) if P["frame"] < 0 else P["frame"]
@@ -72,7 +72,7 @@ try:
         if P["component"]:
             idx = list(fo.componentLabels).index(P["component"])
         rows = []
-        for v in fo.values[:P["max_values"]]:
+        for v in [fo.values[i] for i in range(min(P["max_values"], len(fo.values)))]:
             label = v.nodeLabel if v.nodeLabel is not None else v.elementLabel
             d = _num(v.data)
             rows.append({"label": label, "data": d if idx is None or not isinstance(d, list) else d[idx]})
@@ -117,6 +117,7 @@ _emit({"inp": P["job"] + ".inp"})
 _VIEWPORT = '''
 from abaqus import *
 from abaqusConstants import *
+from caeModules import *  # registers the visualization module; without it displayedObject rejects an Odb
 odb = session.openOdb(name=P["odb"], readOnly=True)
 vp = session.viewports["Viewport: 1"]
 vp.setValues(displayedObject=odb)

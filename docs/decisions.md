@@ -15,7 +15,7 @@
 - Job status comes from .sta/.msg/.lck text; the exit code is not trusted (a launcher can print an error and exit 0).
 - Stale .lck/.sta/.msg/.dat/.odb are deleted before submit.
 - submit_job from a .cae writes the .inp with a noGUI script, then runs the same `abaqus job=` path.
-- Background submit uses `Invoke-CimMethod Win32_Process Create`: Start-Process children die when the ssh session closes (.critic/review-1.md).
+- Background submit uses `Invoke-CimMethod Win32_Process Create`: Start-Process children die when the ssh session closes; verified on the VM with a `ping -n 40` child (2026-10-28).
 - viewport output name has no dot; no maximize() under noGUI.
 - Kernel scripts target Python 3.10 (SMApy/python3.10 in the 2026 install).
 - `mcp<2`: FastMCP lives in mcp 1.x; mcp 2.x renamed it.

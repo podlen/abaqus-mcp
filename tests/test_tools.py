@@ -4,7 +4,8 @@ import time
 from abaqus_mcp import abaqus_scripts as sc
 from conftest import FIX, closed_port, ok
 
-TB = 'Traceback (most recent call last):\n  File "bad.py", line 1, in <module>\nNameError: name \'x\' is not defined\n'
+TB = (FIX / "cae_error.stderr").read_text()
+OUT_ERR = "Abaqus Error: cae exited with an error.\n"
 
 
 def status_out(sta="", msg="", lck=False):
@@ -51,14 +52,18 @@ def test_guard_blocks_run_script_and_submit(make, tmp_path):
 def test_run_script_ok_and_traceback(make, tmp_path):
     s = tmp_path / "bad.py"
     s.write_text("x")
-    svc, t = make(lambda c: ok("", TB, 1) if "noGUI=bad.py" in c else None)
+    svc, t = make(lambda c: ok(OUT_ERR, TB, 0) if "noGUI=bad.py" in c else ok("#: hi\n#* ValueError: x\n") if "Get-Content" in c and "abaqus.rpy" in c else None)
     r = svc.run_script("job1", str(s))
-    assert r["status"] == "error" and r["exit_code"] == 1
-    assert r["traceback"].endswith("NameError: name 'x' is not defined") and "NameError" in r["error"]
+    assert r["status"] == "error" and r["exit_code"] == 0
+    assert r["traceback"].startswith("ValueError: deliberate") and "QAE" not in r["traceback"]
+    assert r["error"] == "ValueError: deliberate"
     assert t.puts["C:\\abaqus-work\\job1\\bad.py"] == "x"
     assert any(c.rstrip().endswith("abaqus.bat' cae noGUI=bad.py; exit $LASTEXITCODE") for c in t.commands)
-    svc2, _ = make(lambda c: ok("done"))
-    assert svc2.run_script("job1", str(s))["status"] == "ok"
+    svc2, _ = make(lambda c: ok("#: printed line\n#: second\n#* old\n") if "Get-Content" in c else ok("done"))
+    r2 = svc2.run_script("job1", str(s))
+    assert r2["status"] == "ok" and r2["print_output"] == "printed line\nsecond"
+    svc3, _ = make(lambda c: ok("#* ValueError: from rpy\n") if "Get-Content" in c else ok(OUT_ERR, "")) 
+    assert svc3.run_script("job1", str(s))["traceback"] == "ValueError: from rpy"
 
 
 def test_run_script_rejects_bad_job(make, tmp_path):
@@ -81,7 +86,7 @@ def test_job_status_variants(make):
         assert svc.job_status("j")["status"] == want
     svc, _ = make(lambda c: ok(status_out("", (FIX / "nobc.msg").read_text())))
     r = svc.job_status("j")
-    assert "NUMERICAL SINGULARITY" in r["errors"][0]
+    assert "TOO MANY ATTEMPTS" in r["errors"][0] and "NUMERICAL SINGULARITY" in r["warnings"][0]
 
 
 def test_submit_inp_foreground(make, tmp_path):
@@ -150,7 +155,7 @@ def test_odb_query_error_and_bad_input(make):
     assert svc.odb_query("jb", "Step 1")["status"] == "error"
     svc, _ = make(lambda c: ok("no json", TB, 1) if " python " in c else None)
     r = svc.odb_query("jb", "Step-1")
-    assert r["status"] == "error" and "NameError" in r["hint"]
+    assert r["status"] == "error" and "ValueError" in r["hint"]
 
 
 def test_model_info(make):

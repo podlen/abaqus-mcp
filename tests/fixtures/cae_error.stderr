@@ -1,0 +1,8 @@
+Successfully checked out QAE/1 from DSLS server license.example.invalid
+Successfully checked out QIT/1 from DSLS server license.example.invalid
+Abaqus License Manager checked out the following license:
+"QAE" from DSLS server license.example.invalid
+<19 out of 20 licenses remain available>.
+ValueError: deliberate
+File "p.py", line 6, in <module>
+    raise ValueError('deliberate')

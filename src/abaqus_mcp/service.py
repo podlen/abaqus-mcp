@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import socket
 import subprocess
 import time
@@ -25,9 +26,25 @@ def _error(msg: str, hint: str = "") -> dict:
     return {"status": "error", "error": msg, "hint": hint}
 
 
-def _traceback(text: str) -> str:
-    i = text.find("Traceback (most recent call last)")
-    return text[i:].strip() if i >= 0 else ""
+_LICENSE_NOISE = re.compile(r"^(Successfully checked out|Abaqus License Manager|\"\w+\" from DSLS|<\d+ out of)")
+_EXC = re.compile(r"^\w*(Error|Exception|Exit)\b.*")
+
+
+def _traceback(stderr: str, rpy: str = "") -> str:
+    """Exception text of a failed `cae noGUI` run: stderr minus license chatter (Abaqus prints no
+    'Traceback' header), else the `#* ` lines of abaqus.rpy."""
+    lines = [l for l in stderr.splitlines() if l.strip() and not _LICENSE_NOISE.match(l.strip())]
+    if not lines:
+        lines = [l[3:] for l in rpy.splitlines() if l.startswith("#* ")]
+    return "\n".join(lines).strip()
+
+
+def _first_exc(tb: str) -> str:
+    return next((l for l in tb.splitlines() if _EXC.match(l)), tb.splitlines()[0] if tb else "")
+
+
+def _failed(r) -> bool:
+    return r.returncode != 0 or r.timed_out or "Abaqus Error:" in r.stdout or "Abaqus Error:" in r.stderr
 
 
 def _json_from(text: str) -> dict | None:
@@ -128,22 +145,32 @@ class Service:
     # -- tools -------------------------------------------------------------
     def run_script(self, job: str, script_path: str, timeout: int | None = None) -> dict:
         """Executes arbitrary Python in Abaqus/CAE on the VM: uploads a .py to the job dir and runs
-        `abaqus cae noGUI=<script>`."""
+        `abaqus cae noGUI=<script>`.
+        print() and sys.stderr output of the script is not on stdout: it is returned as `print_output`,
+        read from the `#: ` lines this run wrote to abaqus.rpy. Write results to a file or sys.__stdout__
+        to get them in `stdout`. A run is an error on `Abaqus Error:` in stdout/stderr or a non-zero exit."""
         try:
             if (g := self._guard()):
                 return g
             src = validate_host_file(script_path)
             d = self._prep(job)
             name = self._upload(job, src)
+            # fresh abaqus.rpy: only this run's lines are read back
+            self.t.run(f"Remove-Item -LiteralPath {psq(d + chr(92) + 'abaqus.rpy')} -ErrorAction SilentlyContinue; exit 0",
+                       self.cfg.ssh_timeout)
             r = self._abq(d, f"cae noGUI={name}", timeout or self.cfg.script_timeout)
+            rpy = self.t.run(f"Get-Content -LiteralPath {psq(d + chr(92) + 'abaqus.rpy')} "
+                             "-ErrorAction SilentlyContinue; exit 0", self.cfg.ssh_timeout).stdout
         except (SecurityError, TransportError) as e:
             return _error(str(e))
-        tb = _traceback(r.stderr) or _traceback(r.stdout)
-        ok = r.returncode == 0 and not tb and not r.timed_out
-        out = {"status": "ok" if ok else "error", "exit_code": r.returncode, "timed_out": r.timed_out,
-               "stdout": r.stdout, "stderr": r.stderr, "traceback": tb, "elapsed_s": round(r.elapsed, 1)}
-        if not ok:
-            out["error"] = "timeout" if r.timed_out else (tb.splitlines()[-1] if tb else "script failed")
+        printed = "\n".join(l[3:] for l in rpy.splitlines() if l.startswith("#: "))
+        failed = _failed(r)
+        tb = _traceback(r.stderr, rpy) if failed else ""
+        out = {"status": "error" if failed else "ok", "exit_code": r.returncode, "timed_out": r.timed_out,
+               "print_output": printed, "stdout": r.stdout, "stderr": r.stderr, "traceback": tb,
+               "elapsed_s": round(r.elapsed, 1)}
+        if failed:
+            out["error"] = "timeout" if r.timed_out else (_first_exc(tb) or "script failed")
         return out
 
     def submit_job(self, job: str, inp_file: str | None = None, cae_file: str | None = None,
@@ -164,9 +191,9 @@ class Service:
                 cae = self._cae(job, cae_file)
                 self._upload_text(job, scripts.write_inp(cae, model, job), "_write_inp.py")
                 w = self._abq(d, "cae noGUI=_write_inp.py", self.cfg.script_timeout)
-                if w.returncode != 0 or not _json_from(w.stdout):
+                if _failed(w) or not _json_from(w.stdout):
                     return _error("writing the input file from the .cae failed",
-                                  _traceback(w.stderr + w.stdout) or truncate(w.stderr, 2000))
+                                  _traceback(w.stderr) or truncate(w.stderr, 2000))
                 inp = f"{job}.inp"
             # stale files from an earlier run would fake a status (prior-art: rutwikg _clear_stale)
             stale = ",".join(psq(f"{job}{e}") for e in (".lck", ".sta", ".msg", ".dat", ".odb"))
@@ -175,7 +202,7 @@ class Service:
             cmd = f"job={job} input={inp} cpus={int(cpus)} interactive"
             if background:
                 # Win32_Process.Create: the child is not tied to the ssh session (Start-Process
-                # children die when it closes, see .critic/review-1.md)
+                # children die when it closes, see docs/decisions.md)
                 line = f'cmd.exe /c ""{self.cfg.abaqus_cmd}" {cmd} > "{job}.log" 2>&1"'
                 ps = ("$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments "
                       f"@{{CommandLine={psq(line)}; CurrentDirectory={psq(d)}}}; "
@@ -242,7 +269,7 @@ class Service:
         r = self._abq(d, f"cae noGUI={name}" if cae else f"python {name}", self.cfg.script_timeout)
         data = self._fetch_json(job, d, out)
         if data is None:
-            return _error("no JSON file from Abaqus", _traceback(r.stderr + r.stdout) or truncate(r.stderr, 2000))
+            return _error("no JSON file from Abaqus", _traceback(r.stderr) or truncate(r.stderr, 2000))
         return data if "error" not in data else {"status": "error", **data}
 
     def odb_query(self, job: str, step: str, frame: int = -1, variable: str | None = "U",
@@ -293,7 +320,7 @@ class Service:
             r = self._abq(d, "cae noGUI=_viewport.py", self.cfg.script_timeout)
             data = _json_from(r.stdout)
             if not data or not data.get("ok"):
-                return _error("viewport PNG not written", _traceback(r.stderr + r.stdout) or truncate(r.stderr, 2000))
+                return _error("viewport PNG not written", _traceback(r.stderr) or truncate(r.stderr, 2000))
             local = self._host(job) / f"{base}.png"
             self.t.get(f"{d}\\{base}.png", local)
         except (SecurityError, TransportError) as e:

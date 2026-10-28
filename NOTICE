@@ -1,0 +1,6 @@
+abaqus-mcp includes code adapted from MOBAI547800/abaqus-mcp-server
+(https://github.com/MOBAI547800/abaqus-mcp-server), MIT License.
+Adapted files: src/abaqus_mcp/security.py, transport.py (subprocess timeout/kill/
+bounded-output pattern from abaqus_cli.py), logparse.py (from log_parser.py),
+abaqus_scripts.py (ODB script pattern from odb_script_templates.py).
+The MIT license text of the original is in LICENSES/MOBAI-MIT.txt.

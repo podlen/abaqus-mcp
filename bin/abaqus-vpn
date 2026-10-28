@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# abaqus-vpn up|down|status: wraps the NetworkManager connection fs-abaqus (no sudo).
+set -uo pipefail
+CON=fs-abaqus
+
+active() { nmcli -t -f NAME connection show --active | grep -qx "$CON"; }
+
+case "${1:-}" in
+    up)     active || nmcli connection up "$CON" >/dev/null || exit 1
+            echo "$CON: up" ;;
+    down)   active && { nmcli connection down "$CON" >/dev/null || exit 1; }
+            echo "$CON: down" ;;
+    status) if active; then echo "$CON: up"; else echo "$CON: down"; exit 3; fi ;;
+    *)      echo "usage: abaqus-vpn up|down|status" >&2; exit 2 ;;
+esac

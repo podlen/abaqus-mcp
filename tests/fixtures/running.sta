@@ -1,0 +1,4 @@
+ Abaqus/Standard 2026                  DATE 27-Oct-2026 TIME 10:00:00
+  STEP  INC ATT SEVERE EQUIL TOTAL  TOTAL      STEP       INC OF       DOF    IF
+     1     1   1     0     1     1  0.1000     0.1000     0.1000
+     1     2   1     0     2     2  0.3000     0.3000     0.2000

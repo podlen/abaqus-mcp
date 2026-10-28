@@ -9,3 +9,9 @@ config.local.toml
 *.odb
 *.lck
 abaqus.rpy*
+images/
+vm/build/
+.admin-password
+.pytest_cache/
+*.egg-info/
+dist/

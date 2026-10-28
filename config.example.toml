@@ -1,0 +1,4 @@
+# Copy to config.local.toml (git-ignored) and fill in.
+license_host = "192.0.2.10"
+license_port = 4085
+ssh_host = "abaqus-vm"

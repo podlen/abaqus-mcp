@@ -1,0 +1,24 @@
+# Decisions
+
+- Base on MOBAI547800/abaqus-mcp-server (MIT): subprocess design, 85 tests, best fit in docs/prior-art.md. Only four ideas taken; no unrelated files.
+- rutwikg (AGPL): concepts only, no code.
+- Server runs on the host; Abaqus runs in the VM; ssh/scp is the only link (no socket bridge, no exec server).
+- Sync `subprocess.run` with timeout in the transport: ssh calls are one-shot, no async needed.
+- Transport is one class with run/put/get; tests inject a fake.
+- Every VM command line is built from names matching `[A-Za-z0-9_-]` (files: no `/`, `\`, `..`): no shell injection. Remote shell is Windows PowerShell 5.1: every VM command is written as PowerShell, paths as single-quoted literals (`psq`).
+- One job = one work dir `<work_vm>\<job>` and one host dir `<work_host>/<job>`.
+- License guard is a TCP connect to license_host:license_port (4 s), `abaqus-vpn up` (15 s cap) once, second probe (4 s): at most 23 s.
+- `abaqus information=release` does not touch the license server, so it is not used as a probe.
+- Scripts inside Abaqus print one JSON document between markers; the server parses only that part.
+- ODB queries use `abaqus python` (no CAE token); model_info and viewport use `cae noGUI` (kernel needed).
+- ODB is opened `readOnly=True` and closed in `finally`; value count is capped.
+- Job status comes from .sta/.msg/.lck text; the exit code is not trusted (a launcher can print an error and exit 0).
+- Stale .lck/.sta/.msg/.dat/.odb are deleted before submit.
+- submit_job from a .cae writes the .inp with a noGUI script, then runs the same `abaqus job=` path.
+- Background submit uses Start-Process so the ssh channel is not held.
+- viewport output name has no dot; no maximize() under noGUI.
+- Kernel scripts target Python 3.10 (SMApy/python3.10 in the 2026 install).
+- `mcp<2`: FastMCP lives in mcp 1.x; mcp 2.x renamed it.
+- Fixtures .sta/.msg are hand-written in the documented layout: no usable real files in the MIT clone, rutwikg's are AGPL.
+- E2E test is gated by ABAQUS_E2E=1 and drives the server through the stdio MCP client.
+- Install: `setup.exe --silent <UserIntentions.xml>` (flag found in InstallData/installer/inst/win_b64/code/bin/DSYInsEngine.dll); XML copied from the host install's UserIntentions_CODE.xml with the license host templated.

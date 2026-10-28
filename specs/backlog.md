@@ -11,4 +11,3 @@ Gaps found while working, not yet in a spec.
 - Kt handbook source (Peterson, Pilkey or Roark) for the plate-with-hole check.
 - C2 idle detection: the AFXProcedure counter is unproven; a stuck counter blocks every live script.
 - Held-out models should avoid physics with a ready Abaqus benchmark page (Hertz has one).
-- SKILL.md names a machine-local documentation path; make it a setting.

@@ -95,7 +95,7 @@ C9. README reads well for a person and works as instructions Claude can follow (
 ## Log
 - 2026-10-28: session VM `abaqus-mcp` built by `./setup.sh` (ISOs reused from `iso_dir`) and Abaqus
   installed by `./setup.sh abaqus`. C1/C3: no file in `~/.ssh` changed; other new files under `~` belong
-  to unrelated apps. C2: system libvirt still lists only `abaqus-win`, `ni-daq`, `default`; forwards on
+  to unrelated apps. C2: system libvirt domain and network lists unchanged; forwards on
   127.0.0.1:2222 and :3390. C4: `Test-NetConnection` to the licence port from the VM: True.
   C7 and the E2E suite: `ABAQUS_E2E=1 uv run pytest` 76 passed, 5 skipped (live tests).
   C5: greps empty; unit tests 61 passed. C6: refusal unit tests pass; a real uninstall not run (it

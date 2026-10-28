@@ -6,7 +6,7 @@ Goal: from Claude Code on Omarchy, build, run and post-process Abaqus models in 
 VM, with the university license reached over OpenVPN, without rebooting into Windows.
 
 ## Criteria
-C1. Windows VM. `setup.sh` (idempotent stages, ~/Projects/work/ni-daq-vm style) downloads
+C1. Windows VM. `setup.sh` (idempotent stages) downloads
     the Windows 11 Enterprise evaluation ISO and virtio-win, installs unattended
     (autounattend.xml with LabConfig TPM/Secure Boot bypass, virtio drivers, OpenSSH server,
     key login with ~/.ssh/abaqus_vm, sleep and Windows Update off) as libvirt domain

@@ -14,8 +14,8 @@ Abaqus 2026 names the two contact surfaces `main` and `secondary`. Use only thes
 
 Every rule ends with its source tag:
 
-- `[A: <title>]`: a page of the Abaqus 2026 documentation, by page title. Local copy, read only:
-  `/mnt/win/Program Files/SIMULIA/Documentation/2026LE/English/`.
+- `[A: <title>]`: a page of the Abaqus 2026 documentation, by page title. A local copy's path,
+  if any, is in `.team/local.md`.
 - `[Bathe x.y]`: K.-J. Bathe, *Finite Element Procedures*, Prentice Hall 1996, section x.y.
 - `[Reddy x.y]`: J. N. Reddy, *An Introduction to the Finite Element Method*, 4th ed., McGraw Hill 2018, section x.y.
 - `[TBD]`: no verified source. Tell the user the rule is unsourced when you give it.

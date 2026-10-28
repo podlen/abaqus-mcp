@@ -16,7 +16,7 @@ Each step names the command and what to check afterwards.
 4. Build the VM: `./setup.sh`. It downloads about 6 GB (Windows 11 Enterprise evaluation ISO, virtio-win ISO) and the unattended install takes about 20 to 40 minutes. Every stage is idempotent; `./setup.sh --list` shows them, `./setup.sh <stage>...` runs some. The last stage, `wait`, ends when SSH answers. Check: `ssh -F ~/.local/share/abaqus-mcp/ssh_config abaqus-vm cmd /c ver` prints a Windows version (use your `state_dir` if you changed it).
 5. Abaqus in the VM: `./setup.sh abaqus <media-dir>`; `<media-dir>/03_Abaqus2026/1/setup.exe` must exist (`--dry-run` prints the steps). It is not part of the default run.
 6. Optional: `./setup.sh gui` once (enables RDP, adds the desktop shortcut "Abaqus CAE (mesa)"), then `bin/abaqus-gui` opens the VM desktop. `./setup.sh live` installs the live-bridge plug-in; restart CAE to load it.
-7. Register the server (run in the repo root): `claude mcp add abaqus -- uv run --directory "$(pwd)" abaqus-mcp`.
+7. Register the server (run in the repo root): `claude mcp add -s user abaqus -- uv run --directory "$(pwd)" abaqus-mcp`.
 8. Link the skill: `ln -s "$(pwd)/skills/abaqus-modelling" ~/.claude/skills/abaqus-modelling`.
 
 The build writes only to `state_dir` (default `~/.local/share/abaqus-mcp`: disk image, ISOs or links to reused ones, answer ISO, SSH key, `ssh_config`, admin password, a marker file, scratch files) and to libvirt's per-user folders (`~/.config/libvirt/`, `~/.local/share/libvirt/`, `~/.cache/libvirt/`). `~/.ssh` and the system libvirt are not touched. The domain `vm_name` (default `abaqus-mcp`) has passt networking; the host reaches the guest only through forwards on 127.0.0.1: `ssh_port` (guest SSH) and `rdp_port` (guest RDP). The VM does not autostart after a host reboot: `virsh -c qemu:///session start abaqus-mcp` (or run `bin/abaqus-gui`).
@@ -78,7 +78,7 @@ With the plug-in installed (`./setup.sh live`), CAE polls `C:\abaqus-work\live\i
 
 ## Uninstall
 
-`./setup.sh uninstall` shows the size of `state_dir` (`du -sh`), asks yes or no, then stops and undefines the domain (`undefine --nvram`) and deletes `state_dir`. It refuses when `state_dir` has no setup marker (`.abaqus-mcp-setup`) or is `$HOME`, `/`, the repo or a parent of the repo. Reused ISOs in `iso_dir`, the repo and `config.local.toml` stay. Remove the registration with `claude mcp remove abaqus` and the skill link with `rm ~/.claude/skills/abaqus-modelling`.
+`./setup.sh uninstall` shows the size of `state_dir` (`du -sh`), asks yes or no, then stops and undefines the domain (`undefine --nvram`) and deletes `state_dir`. It refuses when `state_dir` has no setup marker (`.abaqus-mcp-setup`) or is `$HOME`, `/`, the repo or a parent of the repo. Reused ISOs in `iso_dir`, the repo and `config.local.toml` stay. Remove the registration with `claude mcp remove -s user abaqus` and the skill link with `rm ~/.claude/skills/abaqus-modelling`.
 
 ## Skill
 

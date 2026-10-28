@@ -1,6 +1,6 @@
 # abaqus-mcp
 
-- Read the active spec in `specs/` first (`.critic/spec.md` links to it); flow in `specs/README.md`.
+- Read the active spec in `specs/` first, if any (`.critic/spec.md` links to it); flow in `specs/README.md`.
   Machine-local facts: `.team/local.md` (git-ignored, may be absent).
 - Ask the user for the project's analysis directory before starting a project.
 - Abaqus 2026 Teaching Edition runs in the libvirt VM `abaqus-mcp` (config `vm_name`) in `qemu:///session`

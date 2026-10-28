@@ -11,3 +11,8 @@ Gaps found while working, not yet in a spec.
 - Kt handbook source (Peterson, Pilkey or Roark) for the plate-with-hole check.
 - C2 idle detection: the AFXProcedure counter is unproven; a stuck counter blocks every live script.
 - Held-out models should avoid physics with a ready Abaqus benchmark page (Hertz has one).
+- 002 unrun checks, need a person at the screen: C1 (CAE visual and `ps`), C2 (a)-(d) via
+  live_checks.py, C3 live half, C9 CAE screenshot without IP, host, user or password.
+- 003: a real `./setup.sh uninstall` run (C6); the parent-of-repo refusal has no own test.
+- 003 C8: a second user runs the README from clone to uninstall on an own Linux machine.
+- README [TBD]s: minimum libvirt version for passt `portForward`; Windows evaluation rearm count.

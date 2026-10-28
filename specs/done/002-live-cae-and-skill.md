@@ -3,7 +3,7 @@
 Goal: Claude works next to Enej in a live Abaqus CAE session. It reads the model Enej has
 open, advises on how to model it, edits it so the change appears in Enej's session, and
 runs and diagnoses nonlinear Abaqus/Standard jobs (source: Enej, 2026-10-28).
-Status: in progress. Open: C1, C2, C3 live half and the C9 screenshot need Enej at the screen.
+Status: closed (source: Enej, 2026-10-28). C1, C2, C3 live half and the C9 screenshot not run; see backlog.
 Builds on specs/done/001-vm-and-mcp-server.md (pushed as 87d46ca).
 
 ## Criteria
@@ -188,3 +188,4 @@ result near F/(2 pi) means per radian, and the check uses the total.
 - C4 (3) closed at 2 of 3 (2026-10-28): roller and strip pass; cylinder failed twice, each time on a
   derived number the advice did not check. The gap is in specs/backlog.md.
 - C3 saved half, C4 (1), C4 (2), C5-C8 pass (critic reviews 1-5, 2026-10-28). C10 grep clean at 1f65cf3.
+- 2026-10-28: closed by Enej with C1, C2, C3 live half and the C9 screenshot unrun; moved to backlog.

@@ -1,6 +1,6 @@
 # VM sandbox: one folder in, one command out
 
-Status: agreed. Owner: Enej. Branch: 003-vm-sandbox.
+Status: closed (source: Enej, 2026-10-28). Owner: Enej.
 
 Goal: another Linux user (a friend with an own Abaqus licence and the same university VPN) clones
 the repo, builds the Abaqus VM with one command, uses the MCP, and removes everything with one
@@ -97,6 +97,8 @@ C9. README reads well for a person and works as instructions Claude can follow (
   installed by `./setup.sh abaqus`. C1/C3: no file in `~/.ssh` changed; other new files under `~` belong
   to unrelated apps. C2: system libvirt domain and network lists unchanged; forwards on
   127.0.0.1:2222 and :3390. C4: `Test-NetConnection` to the licence port from the VM: True.
-  C7 and the E2E suite: `ABAQUS_E2E=1 uv run pytest` 76 passed, 5 skipped (live tests).
+  C7 and the E2E suite: `ABAQUS_E2E=1 uv run pytest` 72 passed, 5 skipped (live tests).
   C5: greps empty; unit tests 61 passed. C6: refusal unit tests pass; a real uninstall not run (it
   would delete the new VM). C8: open, for the friend. C9: README minimum libvirt version and rearm count [TBD].
+- 2026-10-28: closed by Enej. Old system domain `abaqus-win`, its DHCP entry, `~/.ssh/abaqus_vm` and
+  its `~/.ssh/config` block removed; ISOs moved into `state_dir`. C6 real uninstall, C8 and the C9 [TBD]s in backlog.

@@ -5,6 +5,10 @@
 #   ./setup.sh <stage>...   run only these stages
 #   ./setup.sh abaqus <media-dir> [--dry-run]   install Abaqus in the VM (vm/install-abaqus.sh);
 #                           listed by --list, not part of the default run (the media is an argument)
+#   ./setup.sh gui          enable RDP in the running VM over ssh (for bin/abaqus-gui); listed by --list,
+#                           not part of the default run
+#   ./setup.sh live         install the live-bridge CAE plug-in in the running VM; listed by --list,
+#                           not part of the default run
 #   ./setup.sh --list       show the stages
 #
 # Every stage is idempotent. Needs: libvirt group membership, virt-install,
@@ -32,7 +36,7 @@ VIRTIO_URL=https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stab
 VIRSH=(virsh -c qemu:///system)
 
 STAGES=(deps keys images answer net vm sshconfig wait)  # default run
-LISTED=("${STAGES[@]}" abaqus)
+LISTED=("${STAGES[@]}" gui live abaqus)
 
 say() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 ssh_vm() { ssh -i "$KEY" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
@@ -199,6 +203,46 @@ stage_wait() {
             "${VIRSH[@]}" change-media "$VM" "$t" --eject --config --live >/dev/null || true
         fi
     done
+}
+
+# RDP for bin/abaqus-gui. NLA stays on (xfreerdp3 does CredSSP with /from-stdin). Prints
+# "changed" only when a setting had to be written, so a second run reports "unchanged".
+stage_gui() {
+    say "RDP in the VM (fDenyTSConnections=0, Remote Desktop firewall group, NLA on, CAE -mesa shortcut)"
+    local ps enc out
+    read -r -d '' ps <<'EOPS' || true
+$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue'
+$changed = @()
+$ts = 'HKLM:\System\CurrentControlSet\Control\Terminal Server'
+$wsp = "$ts\WinStations\RDP-Tcp"
+if ((Get-ItemProperty $ts).fDenyTSConnections -ne 0) {
+    Set-ItemProperty $ts -Name fDenyTSConnections -Value 0 -Type DWord; $changed += 'fDenyTSConnections' }
+if ((Get-ItemProperty $wsp).UserAuthentication -ne 1) {
+    Set-ItemProperty $wsp -Name UserAuthentication -Value 1 -Type DWord; $changed += 'NLA' }
+$fw = Get-NetFirewallRule -DisplayGroup 'Remote Desktop'
+if (@($fw | Where-Object { $_.Enabled -ne 'True' }).Count -gt 0) {
+    Enable-NetFirewallRule -DisplayGroup 'Remote Desktop'; $changed += 'firewall' }
+if ((Get-Service TermService).StartType -ne 'Manual' -and (Get-Service TermService).StartType -ne 'Automatic') {
+    Set-Service TermService -StartupType Manual; $changed += 'service-start' }
+if ((Get-Service TermService).Status -ne 'Running') { Start-Service TermService; $changed += 'service-run' }
+$lnk = 'C:\Users\abaqus\Desktop\Abaqus CAE (mesa).lnk'
+$tgt = 'C:\Program Files\SIMULIA\Commands\abaqus.bat'
+$sh = New-Object -ComObject WScript.Shell
+$cur = if (Test-Path -LiteralPath $lnk) { $sh.CreateShortcut($lnk) } else { $null }
+if (-not $cur -or $cur.TargetPath -ne $tgt -or $cur.Arguments -ne 'cae -mesa') {
+    New-Item -ItemType Directory -Force (Split-Path $lnk) | Out-Null
+    $l = $sh.CreateShortcut($lnk); $l.TargetPath = $tgt; $l.Arguments = 'cae -mesa'
+    $l.WorkingDirectory = 'C:\Users\abaqus'; $l.Save(); $changed += 'shortcut' }
+if ($changed.Count) { 'changed: ' + ($changed -join ', ') } else { 'unchanged' }
+EOPS
+    enc=$(printf '%s' "$ps" | iconv -t UTF-16LE | base64 -w0)
+    out=$(ssh_vm powershell -NoProfile -NonInteractive -EncodedCommand "$enc") || { echo "    ssh failed"; return 1; }
+    echo "    $out"
+}
+
+stage_live() {
+    say "live-bridge plug-in into the VM account (restart CAE to load it)"
+    "$HERE/vm/install-live-plugin.sh"
 }
 
 if [ "${1:-}" = "--list" ]; then printf '%s\n' "${LISTED[@]}"; exit 0; fi

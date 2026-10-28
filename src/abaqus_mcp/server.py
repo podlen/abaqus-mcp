@@ -1,4 +1,4 @@
-"""FastMCP stdio server exposing the seven tools."""
+"""FastMCP stdio server exposing the ten tools."""
 from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
@@ -15,8 +15,11 @@ def build(svc: Service) -> FastMCP:
     mcp.tool()(svc.submit_job)
     mcp.tool()(svc.job_status)
     mcp.tool()(svc.odb_query)
-    mcp.tool()(svc.model_info)
+    mcp.tool()(svc.odb_history)
+    mcp.tool()(svc.model_summary)
+    mcp.tool()(svc.model_views)
     mcp.tool()(svc.viewport_png)
+    mcp.tool()(svc.cae_live)
     return mcp
 
 

@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# abaqus-gui: open the Abaqus VM desktop in an RDP window (no sudo).
+# Starts the VM if off, waits for ssh, brings the license VPN up, runs xfreerdp3 as user abaqus.
+# The password is read from .admin-password and goes to xfreerdp3 on stdin (/args-from:stdin),
+# never on a command line. In the session, start "Abaqus CAE (mesa)" from the desktop
+# (abaqus cae -mesa; qxl video has no 3D). One-time VM setup: ./setup.sh gui
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VM=abaqus-win
+IP=192.168.122.51
+USER_=abaqus
+PWFILE="$HERE/.admin-password"
+VIRSH=(virsh -c qemu:///system)
+
+[ -s "$PWFILE" ] || { echo "abaqus-gui: $PWFILE missing" >&2; exit 1; }
+command -v xfreerdp3 >/dev/null || { echo "abaqus-gui: xfreerdp3 not installed" >&2; exit 1; }
+
+"${VIRSH[@]}" domstate "$VM" | grep -q running || { echo "starting $VM"; "${VIRSH[@]}" start "$VM" >/dev/null; }
+
+for _ in $(seq 1 90); do
+    ssh -o BatchMode=yes -o ConnectTimeout=3 abaqus-vm cmd /c ver >/dev/null 2>&1 && break
+    sleep 2
+done
+ssh -o BatchMode=yes -o ConnectTimeout=3 abaqus-vm cmd /c ver >/dev/null 2>&1 \
+    || { echo "abaqus-gui: no ssh on $VM after 3 min" >&2; exit 1; }
+
+"$HERE/bin/abaqus-vpn" up
+
+# /dynamic-resolution follows the window size; +clipboard shares the clipboard;
+# /cert:ignore: self-signed VM cert on a libvirt-only NAT.
+{ printf '%s\n' /v:"$IP" /u:"$USER_" /title:"Abaqus VM" /dynamic-resolution \
+        +clipboard +auto-reconnect /cert:ignore /sec:nla -wallpaper -themes /network:lan
+  printf '/p:%s\n' "$(head -n1 "$PWFILE")"; } | exec xfreerdp3 /args-from:stdin

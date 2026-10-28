@@ -24,6 +24,8 @@ class Config:
     script_timeout: int = 900
     job_timeout: int = 3600
     max_output: int = 20000
+    live_probe_timeout: float = 4.0  # ssh heartbeat probe; keeps "no live CAE session" under 5 s
+    live_stale_s: float = 3.0
 
 
 def load(path: str | Path | None = None) -> Config:

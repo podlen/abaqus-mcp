@@ -158,11 +158,43 @@ def test_odb_query_error_and_bad_input(make):
     assert r["status"] == "error" and "ValueError" in r["hint"]
 
 
-def test_model_info(make):
+def test_model_summary(make):
     svc, t = make()
-    t.files["C:\\abaqus-work\\jb\\_model_info.json"] = json.dumps({"models": {"Model-1": {"steps": {}}}})
-    r = svc.model_info("jb")
-    assert "Model-1" in r["models"] and t.commands[-1].rstrip().endswith("cae noGUI=_model_info.py; exit $LASTEXITCODE")
+    t.files["C:\\abaqus-work\\jb\\_model_summary.json"] = json.dumps({"source": "jb.cae", "model": "Model-1"})
+    r = svc.model_summary("jb")
+    assert r["status"] == "ok" and r["model"] == "Model-1"
+    assert t.commands[-1].rstrip().endswith("cae noGUI=_model_summary.py; exit $LASTEXITCODE")
+    s = t.puts["C:\\abaqus-work\\jb\\_model_summary.py"]
+    assert '\\"cae\\": \\"jb.cae\\"' in s and '\\"model\\": null' in s and "def model_summary(mdb" in s
+    svc.model_summary("jb", model="Solid")
+    assert '\\"model\\": \\"Solid\\"' in t.puts["C:\\abaqus-work\\jb\\_model_summary.py"]
+    assert svc.model_summary("jb", model="a;b")["status"] == "error"
+
+
+def test_model_summary_kernel_function_has_no_noGUI_calls():
+    src = sc._kernel("summary.py").split('"""', 2)[2]  # code after the module docstring
+    for bad in ("openMdb", "session", "noGUI", "from abaqus import", "sys.__stdout__"):
+        assert bad not in src
+    compile(src, "summary.py", "exec")
+
+
+def test_model_views(make):
+    svc, t = make(lambda c: _json({"ok": True, "shown": "assembly", "files": []}))
+    r = svc.model_views("jb", highlight="TOP")
+    assert r["status"] == "ok" and r["highlight"] == "TOP" and r["shown"] == "assembly"
+    assert set(r["paths"]) == {"iso", "front", "top"} and r["paths"]["iso"].endswith("jb_views_TOP_iso.png")
+    s = t.puts["C:\\abaqus-work\\jb\\_model_views.py"]
+    assert '\\"base\\": \\"jb_views_TOP\\"' in s and "maximize(" not in s and "def render_views(" in s
+    assert t.gets == [f"C:\\abaqus-work\\jb\\jb_views_TOP_{v}.png" for v in ("iso", "front", "top")]
+    assert svc.model_views("jb", highlight="a b")["status"] == "error"
+    svc, _ = make(lambda c: _json({"ok": False}))
+    assert svc.model_views("jb")["status"] == "error"
+
+
+def test_model_views_kernel_function_rules():
+    src = sc._kernel("views.py").split('"""', 2)[2]
+    assert "maximize(" not in src and "openMdb" not in src and "noGUI" not in src
+    compile(src, "views.py", "exec")
 
 
 def test_abaqus_cmd_full_path_and_missing(make):
@@ -177,10 +209,10 @@ def test_bare_cae_name_not_resolved_against_cwd(make, tmp_path, monkeypatch):
     (tmp_path / "bare.cae").write_text("host copy")
     monkeypatch.chdir(tmp_path)
     svc, t = make()
-    svc.model_info("jb", cae_file="bare.cae")
+    svc.model_summary("jb", cae_file="bare.cae")
     assert not any(k.endswith("bare.cae") for k in t.puts)
-    assert '\\"cae\\": \\"bare.cae\\"' in t.puts["C:\\abaqus-work\\jb\\_model_info.py"]
-    svc.model_info("jb", cae_file=str(tmp_path / "bare.cae"))
+    assert '\\"cae\\": \\"bare.cae\\"' in t.puts["C:\\abaqus-work\\jb\\_model_summary.py"]
+    svc.model_summary("jb", cae_file=str(tmp_path / "bare.cae"))
     assert "C:\\abaqus-work\\jb\\bare.cae" in t.puts
 
 
@@ -195,9 +227,8 @@ def test_scripts_frame_and_viewport_rules():
     assert "len(step.frames)" in q
     v = sc.viewport("a.odb", "o")
     assert "CONTOURS_ON_DEF" in v and "from abaqus import *" in v and "Magnitude\"" in v and "len(odb.steps[sname].frames)" in v
-    for m in (sc.model_info("a.cae"), sc.write_inp("a.cae", "M", "j")):
+    for m in (sc.model_summary("a.cae"), sc.model_views("a.cae", "b"), sc.write_inp("a.cae", "M", "j")):
         assert "mdb = openMdb(pathName=" in m and "from abaqus import *" in m
-    assert "element_sets" not in sc.model_info("a.cae")
 
 
 def test_viewport_png(make):
@@ -212,5 +243,50 @@ def test_viewport_png(make):
 
 
 def test_abaqus_scripts_compile():
-    for s in (sc.odb_query("a.odb", "S"), sc.model_info("a.cae"), sc.write_inp("a.cae", "M", "j"), sc.viewport("a.odb", "o")):
+    for s in (sc.odb_query("a.odb", "S"), sc.model_summary("a.cae"), sc.model_views("a.cae", "b", highlight="S"), sc.write_inp("a.cae", "M", "j"), sc.viewport("a.odb", "o")):
         compile(s, "s", "exec")
+
+
+HIST_JSON = "C:\\abaqus-work\\jb\\_odb_history.json"
+
+
+def test_odb_history(make):
+    data = {"series": {"Node RIGID.1000 / RF2": {"n_points": 2, "points": [[0.0, 0.0], [1.0, -5.0]]}}}
+    svc, t = make()
+    t.files[HIST_JSON] = json.dumps(data)
+    r = svc.odb_history("jb", step="Upset", region="rigid", outputs=["RF2"])
+    assert r["status"] == "ok" and r["series"]["Node RIGID.1000 / RF2"]["points"][1] == [1.0, -5.0]
+    script = t.puts["C:\\abaqus-work\\jb\\_odb_history.py"]
+    assert "readOnly=True" in script and '\\"outputs\\": [\\"RF2\\"]' in script and '\\"max_points\\": 200' in script
+    assert t.commands[-1].rstrip().endswith("_odb_history.py; exit $LASTEXITCODE") and " python _odb_history.py" in t.commands[-1]
+    assert "cae noGUI" not in t.commands[-1]
+    compile(script, "s", "exec")
+
+
+def test_odb_history_cut_keeps_extremes():
+    ns = {}
+    src = sc.odb_history("a.odb")
+    exec(src.split("odb = openOdb")[0].split("from odbAccess import openOdb")[1], ns)
+    pts = [[float(i), float((i * 37) % 101)] for i in range(1000)]
+    cut = ns["_cut"](pts, 200)
+    assert len(cut) == 200 and cut[0] == pts[0] and cut[-1] == pts[-1]
+    assert max(c[1] for c in cut) == 100 and min(c[1] for c in cut) == 0
+
+
+def test_odb_history_validation(make):
+    svc, t = make()
+    assert svc.odb_history("jb", outputs=["RF2;x"])["status"] == "error"
+    assert svc.odb_history("jb", region="a'b")["status"] == "error"
+    assert t.commands == []
+    r = svc.odb_history("jb")  # nothing fetched: no file
+    assert r["status"] == "error"
+
+
+def test_summary_cut_records_omitted():
+    ns = {}
+    exec(sc._kernel("summary.py"), ns)
+    om = {}
+    assert ns["_cut"](range(50), "sets", "sets", 1.0, om) == list(range(30)) and om == {"sets": 20}
+    om = {}
+    assert len(ns["_cut"](range(50), "sets", "sets", 0.1, om)) == 3 and om == {"sets": 47}
+    assert ns["_cut"]([1], "sets", "sets", 0.0, {}) == [1]

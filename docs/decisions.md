@@ -10,7 +10,7 @@
 - License guard is a TCP connect to license_host:license_port (4 s), `abaqus-vpn up` (15 s cap) once, second probe (4 s): at most 23 s.
 - `abaqus information=release` does not touch the license server, so it is not used as a probe.
 - Scripts inside Abaqus print one JSON document between markers; the server parses only that part.
-- ODB queries use `abaqus python` (no CAE token); model_info and viewport use `cae noGUI` (kernel needed).
+- ODB queries use `abaqus python` (no CAE token); model_summary, model_views and viewport use `cae noGUI` (kernel needed).
 - ODB is opened `readOnly=True` and closed in `finally`; value count is capped.
 - Job status comes from .sta/.msg/.lck text; the exit code is not trusted (a launcher can print an error and exit 0).
 - Stale .lck/.sta/.msg/.dat/.odb are deleted before submit.
@@ -19,10 +19,28 @@
 - viewport output name has no dot; no maximize() under noGUI.
 - Kernel scripts target Python 3.10 (SMApy/python3.10 in the 2026 install).
 - `mcp<2`: FastMCP lives in mcp 1.x; mcp 2.x renamed it.
-- Fixtures .sta/.msg are hand-written in the documented layout: no usable real files in the MIT clone, rutwikg's are AGPL.
+- Fixtures: ok/failed/running/nobc are hand-written (no usable real files in the MIT clone, rutwikg's are AGPL); tests/fixtures/upsetting/ holds real .sta/.msg/.dat from the C7 runs.
 - E2E test is gated by ABAQUS_E2E=1 and drives the server through the stdio MCP client.
 - Install: `setup.exe --silent <UserIntentions.xml>` (flag found in InstallData/installer/inst/win_b64/code/bin/DSYInsEngine.dll); XML copied from the host install's UserIntentions_CODE.xml with the license host templated.
 - `abaqus_cmd` is the full path `C:\Program Files\SIMULIA\Commands\abaqus.bat`: no dependence on the machine PATH, sshd restarts or WMI environments. The PATH edit in install-abaqus.ps1 stays for interactive use.
-- odb_query and model_info scripts write JSON to a file in the job dir and the server fetches it: stdout is truncated at max_output.
+- odb_query and model_summary scripts write JSON to a file in the job dir and the server fetches it: stdout is truncated at max_output.
 - fs-abaqus is split-tunnel (`ipv4.never-default yes`): a full tunnel cut other internet traffic, including the Claude API.
 - ssh ControlMaster not adopted: every call is one-shot and the VM is on a local libvirt network, so connection setup is cheap.
+- GUI is RDP to the VM as user `abaqus` (same account as ssh, so GUI and MCP share one workspace); `./setup.sh gui` sets fDenyTSConnections=0 and the Remote Desktop firewall group over ssh and prints `unchanged` on a rerun. It is outside the default stage run because it needs a running VM.
+- NLA stays on: xfreerdp3 does CredSSP with the local account; `/cert:ignore` because the VM certificate is self-signed on a host-only libvirt NAT.
+- `bin/abaqus-gui` passes every xfreerdp3 argument, the password included, on stdin (`/args-from:stdin`, which accepts no other argument): verified with `ps -eo args` that the password is not visible.
+- CAE starts from a desktop shortcut "Abaqus CAE (mesa)" (`abaqus.bat cae -mesa`) made by `./setup.sh gui`; qxl has no 3D, so `-mesa` is always on. No autostart and no RemoteApp: an alternate shell would drop the desktop.
+- `/dynamic-resolution` (window resize follows into the VM) and `+clipboard`; `/smart-sizing` is mutually exclusive with dynamic resolution in xfreerdp3.
+- job_status convergence (C5): one .sta row is one attempt; attempts, max/mean equilibrium iterations and severe-iteration sum count all rows; increments done, smallest and last increment and step time use rows without `U`.
+- .msg warning "first increment" is the last `INCREMENT n STARTS` (or `STEP s INCREMENT n`) line above the first occurrence; unnamed warnings are grouped by first line with numbers removed; output keeps 12 groups, the last 5 errors and 3 sample warnings to stay under 100 lines.
+- With no .sta and no .msg, job_status reads `***ERROR` lines (plus 3 lines of context) from the .dat and reports failed.
+- odb_history (C6) uses `abaqus python` and writes JSON to the job dir like odb_query; the 200-point cut keeps first, last, min and max and spreads the rest evenly; region is a substring match, so one RF2 query spans every matching region.
+- model_summary replaces model_info (same kernel script path, richer JSON); model_info is removed, not aliased, and tests and README use the new name.
+- The summary and view code live as plain functions in src/abaqus_mcp/kernel/{summary,views}.py, embedded into the kernel script as text; the noGUI script only opens the mdb and calls them, so a live session can call the same functions.
+- Summary output is capped at 20 kB by re-running with smaller per-list limits (scale 1, .5, .25, .1, .03); each cut list is recorded as `omitted["dotted.path"] = n`.
+- Loads, BCs and interactions hold no step data on the object: step, values and contact property come from the step state whose status is CREATED; a component is listed only when its `<name>State` is not UNSET.
+- Abaqus 2026 names contact surfaces `main`/`secondary` (`master`/`slave` raise a keyword error), so the schema uses main and secondary.
+- `sum` is shadowed by `from abaqus import *` in the kernel (rejects dict_values): kernel code adds in a loop.
+- Instances cannot mix 3D and axisymmetric parts in one model, an independent instance needs an unmeshed part: the test .cae has a second model `Solid` for the 3D independent instance.
+- model_views highlights through a temporary display group coloured by the `Display group` colour mapping; `enableMultipleColors()` gave blank PNGs under noGUI, and Set/Surface colour-mapping overrides changed nothing.
+- model_views PNG names are `<job>_views[_<highlight>]_{iso,front,top}.png`; the view PNGs are fetched to <work_host>/<job>/.

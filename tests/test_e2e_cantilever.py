@@ -89,9 +89,9 @@ def test_cantilever(tmp_path):
     st = build_and_run(tmp_path, "cantilever", True)
     assert st["status"] == "completed", st
 
-    info = call("model_info", job="cantilever")
-    assert "Steel" in info["models"]["Model-1"]["materials"]
-    assert {"Load", "Freq"} <= set(info["models"]["Model-1"]["steps"])
+    info = call("model_summary", job="cantilever")
+    assert "Steel" in info["materials"]
+    assert {"Load", "Freq"} <= {s["name"] for s in info["steps"]}
 
     u = call("odb_query", job="cantilever", step="Load", frame=-1, variable="U", set_name="TIP", component="U2")
     assert u["status"] == "ok", u

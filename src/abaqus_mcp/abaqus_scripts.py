@@ -1,6 +1,6 @@
 """Scripts that run inside Abaqus Python (3.10 in Abaqus 2026, SMApy/python3.10).
 
-Large results (odb_query, model_info) are written to a JSON file in the job directory
+Large results (odb_query, model_summary) are written to a JSON file in the job directory
 (P["result"]) and fetched by the server; small ones print one JSON document between
 markers. Pattern adapted from MOBAI547800/abaqus-mcp-server odb_script_templates.py (MIT), see
 NOTICE: a generated script prints one JSON document between markers, so banner text on
@@ -9,6 +9,7 @@ stdout cannot corrupt it. Parameters are embedded as a JSON string literal.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 START, END = "===JSON_START===", "===JSON_END==="
 
@@ -83,24 +84,57 @@ finally:
     odb.close()
 '''
 
-_MODEL_INFO = '''
+_ODB_HISTORY = '''
+from odbAccess import openOdb
+def _cut(pts, n):
+    if len(pts) <= n:
+        return pts
+    keep = {0, len(pts) - 1, min(range(len(pts)), key=lambda i: pts[i][1]), max(range(len(pts)), key=lambda i: pts[i][1])}
+    rest = [i for i in range(len(pts)) if i not in keep]
+    k = n - len(keep)
+    keep.update(rest[int(j * len(rest) / k)] for j in range(k))
+    return [pts[i] for i in sorted(keep)]
+odb = openOdb(P["odb"], readOnly=True)
+try:
+    names = list(odb.steps.keys())
+    if P["step"] and P["step"] not in names:
+        _emit({"error": "step not found", "steps": names}); sys.exit(0)
+    use = [P["step"]] if P["step"] else names
+    if not P["outputs"]:
+        listing = {}
+        for sn in use:
+            listing[sn] = dict((r.name, sorted(r.historyOutputs.keys())) for r in odb.steps[sn].historyRegions.values())
+        _emit({"steps": listing}); sys.exit(0)
+    want = [o.upper() for o in P["outputs"]]
+    out = {}
+    for sn in use:
+        for r in odb.steps[sn].historyRegions.values():
+            if P["region"] and P["region"].lower() not in r.name.lower():
+                continue
+            for o, ho in r.historyOutputs.items():
+                if o.upper() in want:
+                    out.setdefault(r.name + " / " + o, []).extend([float(t), float(v)] for t, v in ho.data)
+    res = {}
+    for k, pts in out.items():
+        res[k] = {"n_points": len(pts), "points": _cut(pts, P["max_points"])}
+    _emit({"step": P["step"], "series": res} if res else {"error": "no matching history output; call without outputs to list them"})
+finally:
+    odb.close()
+'''
+
+_SUMMARY_CALL = '''
 from abaqus import *
 from abaqusConstants import *
 mdb = openMdb(pathName=P["cae"])
-models = {}
-for mname, m in mdb.models.items():
-    parts = {}
-    for pn, p in m.parts.items():
-        parts[pn] = {"nodes": len(p.nodes), "elements": len(p.elements),
-                     "node_sets": list(p.sets.keys())}
-    mats = {}
-    for mn, mat in m.materials.items():
-        mats[mn] = {"elastic": _num(mat.elastic.table[0]) if hasattr(mat, "elastic") and mat.elastic else None,
-                    "density": _num(mat.density.table[0]) if hasattr(mat, "density") and mat.density else None}
-    steps = {sn: {"type": s.__class__.__name__, "nlgeom": getattr(s, "nlgeom", None) == ON} for sn, s in m.steps.items()}
-    models[mname] = {"parts": parts, "assembly_sets": list(m.rootAssembly.sets.keys()),
-                     "steps": steps, "materials": mats}
-_emit({"models": models})
+_emit(model_summary(mdb, P["model"], P["source"]))
+'''
+
+_VIEWS_CALL = '''
+from abaqus import *
+from abaqusConstants import *
+from caeModules import *
+mdb = openMdb(pathName=P["cae"])
+_emit(dict(render_views(mdb, session, session.viewports["Viewport: 1"], P["model"], P["base"], P["highlight"]), ok=True))
 '''
 
 _WRITE_INP = '''
@@ -155,8 +189,18 @@ def odb_query(odb, step, frame=-1, variable=None, set_name=None, component=None,
                                    result=result))
 
 
-def model_info(cae, result=None) -> str:
-    return _build(_MODEL_INFO, dict(cae=cae, result=result))
+def _kernel(name: str) -> str:
+    return (Path(__file__).parent / "kernel" / name).read_text()
+
+
+def model_summary(cae, model=None, source=None, result=None) -> str:
+    return _build(_kernel("summary.py") + _SUMMARY_CALL,
+                  dict(cae=cae, model=model, source=source or cae, result=result))
+
+
+def model_views(cae, base, model=None, highlight=None) -> str:
+    return _build(_kernel("views.py") + _VIEWS_CALL,
+                  dict(cae=cae, model=model, base=base, highlight=highlight))
 
 
 def write_inp(cae, model, job) -> str:
@@ -168,3 +212,36 @@ def viewport(odb, out, step_index=0, frame=-1, variable="U", invariant=None,
     return _build(_VIEWPORT, dict(odb=odb, out=out, step_index=step_index, frame=frame,
                                   variable=variable, invariant=invariant, component=component,
                                   width=width, height=height))
+
+
+def odb_history(odb, step=None, region=None, outputs=None, max_points=200, result=None) -> str:
+    return _build(_ODB_HISTORY, dict(odb=odb, step=step, region=region, outputs=outputs,
+                                     max_points=max_points, result=result))
+
+
+# -- live CAE session: scripts run by mcp_live_kernel.run (mdb, session in scope; `result` is returned)
+_LIVE_SUMMARY = """
+result = model_summary(mdb, {model!r}, "live")
+"""
+
+_LIVE_VIEWS = """
+import os
+os.makedirs(os.path.dirname({base!r}), exist_ok=True)
+_vp = session.viewports[session.currentViewportName]
+_old = _vp.displayedObject
+try:
+    result = render_views(mdb, session, _vp, {model!r}, {base!r}, {highlight!r})
+finally:
+    try:
+        _vp.setValues(displayedObject=_old)
+    except Exception:
+        pass
+"""
+
+
+def live_summary(model=None) -> str:
+    return _kernel("summary.py") + _LIVE_SUMMARY.format(model=model)
+
+
+def live_views(base, model=None, highlight=None) -> str:
+    return _kernel("views.py") + _LIVE_VIEWS.format(base=base, model=model, highlight=highlight)

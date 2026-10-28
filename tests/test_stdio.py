@@ -4,7 +4,7 @@ import sys
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
-NAMES = {"license_check", "run_script", "submit_job", "job_status", "odb_query", "model_info", "viewport_png"}
+NAMES = {"license_check", "run_script", "submit_job", "job_status", "odb_query", "odb_history", "model_summary", "model_views", "viewport_png", "cae_live"}
 
 
 def test_tools_list_over_stdio(tmp_path):

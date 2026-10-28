@@ -6,15 +6,17 @@ import re
 import socket
 import subprocess
 import time
+import uuid
 from pathlib import Path
 
 from . import abaqus_scripts as scripts
 from .config import Config
-from .logparse import parse_msg, parse_sta
+from .logparse import last_errors, msg_warning_groups, parse_msg, parse_sta, sta_convergence
 from .security import SecurityError, truncate, validate_filename, validate_host_file, validate_name
 from .transport import TransportError
 
 UNREACHABLE = "license server unreachable"
+NO_LIVE = "no live CAE session"
 
 
 def psq(s: str) -> str:
@@ -142,6 +144,80 @@ class Service:
         r = self.license_check()
         return None if r["status"] == "ok" else r
 
+
+    # -- live CAE session (C2) ---------------------------------------------
+    @property
+    def _live(self) -> str:
+        return self.cfg.work_vm + "\\live"
+
+    def _live_age(self) -> float | None:
+        """Heartbeat age in seconds on the VM clock (no host/VM clock skew), None when missing or stale."""
+        hb = psq(self._live + "\\heartbeat.txt")
+        cmd = (f"$p={hb}; if (Test-Path -LiteralPath $p) {{ try {{ $t=[double](Get-Content -LiteralPath $p -Raw); "
+               "[math]::Round([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()/1000 - $t, 2) } catch { } }; exit 0")
+        try:
+            r = self.t.run(cmd, self.cfg.live_probe_timeout)
+        except TransportError:
+            return None
+        if r.timed_out or r.returncode != 0:
+            return None
+        try:
+            age = float(r.stdout.strip().splitlines()[-1])
+        except (ValueError, IndexError):
+            return None
+        return age if age <= self.cfg.live_stale_s else None
+
+    def cae_live(self, script: str, timeout: int = 60) -> dict:
+        """Runs Python in the open Abaqus/CAE GUI session (its kernel: `mdb`, `session` and the
+        abaqus modules are in scope), so edits appear in the open model tree. Needs the live-bridge plug-in
+        and a CAE window; otherwise returns "no live CAE session" within 5 s. The script waits until no
+        GUI dialog or procedure is active. Output (print) and a variable named `result` (JSON-able)
+        come back; an exception comes back as `traceback`. Every script is kept in
+        C:\\abaqus-work\\live\\log on the VM."""
+        t0 = time.monotonic()
+        if self._live_age() is None:
+            return _error(NO_LIVE, "start CAE with bin/abaqus-gui (plug-in installed by vm/install-live-plugin.sh)")
+        sid = f"{int(time.time() * 1000)}-{uuid.uuid4().hex[:6]}"
+        local = self.cfg.work_host / "_live" / f"{sid}.part"
+        local.parent.mkdir(parents=True, exist_ok=True)
+        local.write_text(script, encoding="utf-8")
+        live, timeout = self._live, max(1, int(timeout))
+        part, py = f"{live}\\inbox\\{sid}.part", f"{live}\\inbox\\{sid}.py"
+        out = f"{live}\\outbox\\{sid}.json"
+        try:
+            self.t.put(local, part)
+            # one ssh call: publish the script, poll the outbox every 0.25 s on the VM, print the result
+            cmd = (f"Move-Item -LiteralPath {psq(part)} -Destination {psq(py)}; $o={psq(out)}; "
+                   f"$end=(Get-Date).AddSeconds({timeout}); "
+                   "while (-not (Test-Path -LiteralPath $o)) { if ((Get-Date) -gt $end) { "
+                   f"try {{ Remove-Item -LiteralPath {psq(py)} -ErrorAction Stop; 'MCP_LIVE_NOTRUN' }} catch {{ 'MCP_LIVE_TIMEOUT' }}; exit 0 }}; "
+                   "Start-Sleep -Milliseconds 250 }; Get-Content -LiteralPath $o -Raw -Encoding UTF8; "
+                   f"Remove-Item -LiteralPath $o -ErrorAction SilentlyContinue; exit 0")
+            r = self.t.run(cmd, timeout + self.cfg.ssh_timeout)
+        except TransportError as e:
+            return _error(str(e))
+        finally:
+            local.unlink(missing_ok=True)
+        text = r.stdout.strip()
+        if text.endswith("MCP_LIVE_NOTRUN"):
+            return _error("timed out, not run", f"the script was still in the inbox after {timeout} s and was deleted; id {sid}")
+        if r.timed_out or text.endswith("MCP_LIVE_TIMEOUT"):
+            return _error("timed out while running",
+                          f"no result within {timeout} s; the script was picked up and may still run; log id {sid} (C:\\abaqus-work\\live\\log\\{sid}.py on the VM)")
+        try:
+            d = json.loads(text)
+        except ValueError:
+            return _error("unreadable result from the live bridge", truncate(text + r.stderr, 2000))
+        out_d = {"status": "ok" if d.get("ok") else "error", "id": sid, "output": d.get("output", ""),
+                 "result": d.get("result"), "traceback": d.get("traceback", ""),
+                 "elapsed_s": round(time.monotonic() - t0, 2)}
+        if not d.get("ok"):
+            out_d["error"] = _first_exc(d.get("traceback", "")) or "script failed"
+        return out_d
+
+    def _live_session(self) -> bool:
+        return self._live_age() is not None
+
     # -- tools -------------------------------------------------------------
     def run_script(self, job: str, script_path: str, timeout: int | None = None) -> dict:
         """Executes arbitrary Python in Abaqus/CAE on the VM: uploads a .py to the job dir and runs
@@ -222,12 +298,15 @@ class Service:
         return st
 
     def job_status(self, job: str) -> dict:
-        """Status from .sta, .msg and .lck. The exit code is not trusted (prior-art)."""
+        """Status from .sta, .msg, .lck (and ***ERROR lines of .dat when no .sta/.msg exist), with per-step
+        convergence detail and grouped warnings. The exit code is not trusted (prior-art)."""
         try:
             d = self._vm(job)
             def part(tag, f):
                 return f"'==={tag}==='; if (Test-Path {psq(f)}) {{ Get-Content {psq(f)} }}; "
             cmd = (f"Set-Location -LiteralPath {psq(d)}; " + part("STA", f"{job}.sta") + part("MSG", f"{job}.msg")
+                   + f"'===DAT==='; if (Test-Path {psq(job + '.dat')}) {{ Get-Content {psq(job + '.dat')} | "
+                   "Select-String -Pattern '\\*\\*\\*ERROR' -Context 0,3 | ForEach-Object { $_.Line; $_.Context.PostContext } }; "
                    + f"'===LCK==='; if (Test-Path {psq(job + '.lck')}) {{ 'yes' }}; '===END==='")
             r = self.t.run(cmd, self.cfg.ssh_timeout)
         except (SecurityError, TransportError) as e:
@@ -237,25 +316,32 @@ class Service:
         parts = {}
         cur = None
         for line in r.stdout.splitlines():
-            if line.strip() in ("===STA===", "===MSG===", "===LCK===", "===END==="):
+            if line.strip() in ("===STA===", "===MSG===", "===DAT===", "===LCK===", "===END==="):
                 cur = line.strip().strip("=")
                 parts[cur] = []
             elif cur:
                 parts[cur].append(line)
         sta_t, msg_t = "\n".join(parts.get("STA", [])), "\n".join(parts.get("MSG", []))
         locked = "yes" in parts.get("LCK", [])
+        dat_t = "\n".join(parts.get("DAT", []))
         sta, msg = parse_sta(sta_t), parse_msg(msg_t)
+        dat_err = parse_msg(dat_t)["errors"] if not sta_t.strip() and not msg_t.strip() else []
         status = sta["status"]
         if status != "completed":
-            if msg["n_errors"]:
+            if msg["n_errors"] or dat_err:
                 status = "failed"
             elif locked:
                 status = "running"
             elif not sta_t.strip() and not msg_t.strip():
                 status = "not_found"
-        out = {"status": status, "job": job, "locked": locked, "errors": msg["errors"],
-               "warnings": msg["warnings"], "n_warnings": msg["n_warnings"]}
+        out = {"status": status, "job": job, "locked": locked,
+               "errors": last_errors(msg_t) if msg["n_errors"] else dat_err[-5:],
+               "warnings": msg["warnings"][:3], "n_warnings": msg["n_warnings"]}
         out.update({k: v for k, v in sta.items() if k != "status"})
+        if sta_t.strip():
+            out["steps"] = sta_convergence(sta_t)
+        if msg["n_warnings"]:
+            out["warning_groups"] = msg_warning_groups(msg_t)
         return out
 
     def _python_json(self, job: str, script: str, name: str, cae: bool = False) -> dict:
@@ -288,21 +374,85 @@ class Service:
         res.setdefault("status", "ok")
         return res
 
-    def model_info(self, job: str, cae_file: str | None = None) -> dict:
-        """Parts, sets, steps and materials of a .cae: cae_file is a host path (with a directory part,
-        or ~) that is uploaded, or a bare name already in the VM job dir. Default <job>.cae."""
+    def odb_history(self, job: str, step: str | None = None, region: str | None = None,
+                    outputs: list[str] | None = None) -> dict:
+        """History output of <job>.odb. Without outputs: regions and their output names per step. With
+        outputs (e.g. ["RF2", "ALLIE"]): [time, value] series, at most 200 points each, first, last,
+        min and max kept; region is a case-insensitive part of the region name."""
         try:
-            if (g := self._guard()):
-                return g
+            if step:
+                validate_name(step)
+            if region and not re.fullmatch(r"[A-Za-z0-9_. -]{1,100}", region):
+                raise SecurityError(f"invalid region {region!r}")
+            for o in outputs or []:
+                validate_name(o)
             self._prep(job)
-            cae = f"{job}.cae"
-            if cae_file:
-                cae = self._cae(job, cae_file)
-            res = self._python_json(job, scripts.model_info(cae, "_model_info.json"), "_model_info.py", cae=True)
+            s = scripts.odb_history(f"{job}.odb", step, region, outputs or None, 200, "_odb_history.json")
+            res = self._python_json(job, s, "_odb_history.py")
         except (SecurityError, TransportError) as e:
             return _error(str(e))
         res.setdefault("status", "ok")
         return res
+
+    def model_summary(self, job: str, cae_file: str | None = None, model: str | None = None,
+                      live: bool = True) -> dict:
+        """JSON summary of a .cae (schema: docs/model_summary.schema.json): parts, instances, sets,
+        surfaces, materials, sections, steps, loads, BCs, interactions, mesh; under 20 kB, long lists
+        cut with `omitted` counts. cae_file is a host path (with a directory part, or ~) that is
+        uploaded, or a bare name already in the VM job dir. Default <job>.cae; model default is the
+        first model. Without cae_file, and when a live CAE session answers (live=True), the open
+        session is summarised (unsaved edits included, source "live")."""
+        try:
+            if model:
+                validate_name(model)
+            if live and not cae_file and self._live_session():
+                res = self._live_json(scripts.live_summary(model))
+                if res.get("status") != "error" or res.get("error") != NO_LIVE:
+                    return res
+            if (g := self._guard()):
+                return g
+            self._prep(job)
+            cae = self._cae(job, cae_file) if cae_file else f"{job}.cae"
+            s = scripts.model_summary(cae, model, cae, "_model_summary.json")
+            res = self._python_json(job, s, "_model_summary.py", cae=True)
+        except (SecurityError, TransportError) as e:
+            return _error(str(e))
+        res.setdefault("status", "ok")
+        return res
+
+    def model_views(self, job: str, cae_file: str | None = None, model: str | None = None,
+                    highlight: str | None = None, live: bool = True) -> dict:
+        """Iso, front and top PNGs of the assembly (the first part when there are no instances) of a
+        .cae, optionally with one set or surface highlighted; copied to <work_host>/<job>/. cae_file
+        and model as in model_summary. Without cae_file, and with a live CAE session, the open model is
+        drawn in a viewport of that session (its displayed object is restored afterwards)."""
+        try:
+            for n in (model, highlight):
+                if n:
+                    validate_name(n)
+            if live and not cae_file and self._live_session():
+                res = self._live_views(job, model, highlight)
+                if res.get("status") != "error" or res.get("error") != NO_LIVE:
+                    return res
+            if (g := self._guard()):
+                return g
+            d = self._prep(job)
+            cae = self._cae(job, cae_file) if cae_file else f"{job}.cae"
+            # no dot in the name: printToFile writes nothing otherwise
+            base = f"{job}_views" + (f"_{highlight}" if highlight else "")
+            self._upload_text(job, scripts.model_views(cae, base, model, highlight), "_model_views.py")
+            r = self._abq(d, "cae noGUI=_model_views.py", self.cfg.script_timeout)
+            data = _json_from(r.stdout)
+            if not data or not data.get("ok"):
+                return _error("view PNGs not written", _traceback(r.stderr) or truncate(r.stderr, 2000))
+            paths = {}
+            for v in ("iso", "front", "top"):
+                local = self._host(job) / f"{base}_{v}.png"
+                self.t.get(f"{d}\\{base}_{v}.png", local)
+                paths[v] = str(local)
+        except (SecurityError, TransportError) as e:
+            return _error(str(e))
+        return {"status": "ok", "paths": paths, "shown": data.get("shown"), "highlight": highlight}
 
     def viewport_png(self, job: str, step_index: int = 0, frame: int = -1, variable: str = "U",
                      invariant: str | None = None) -> dict:
@@ -326,3 +476,28 @@ class Service:
         except (SecurityError, TransportError) as e:
             return _error(str(e))
         return {"status": "ok", "path": str(local)}
+
+    def _live_json(self, script: str, timeout: int = 120) -> dict:
+        r = self.cae_live(script, timeout)
+        if r["status"] != "ok":
+            return r
+        res = r.get("result")
+        if not isinstance(res, dict):
+            return _error("live script returned no result", truncate(r.get("output", ""), 2000))
+        res.setdefault("status", "ok")
+        return res
+
+    def _live_views(self, job: str, model, highlight) -> dict:
+        base = f"{self._live}\\views\\{job}_views" + (f"_{highlight}" if highlight else "")
+        res = self._live_json(scripts.live_views(base, model, highlight))
+        if res.get("status") == "error" or not res.get("files"):
+            return res if res.get("status") == "error" else _error("view PNGs not written")
+        paths = {}
+        try:
+            for v in ("iso", "front", "top"):
+                local = self._host(job) / f"{job}_views{'_' + highlight if highlight else ''}_{v}.png"
+                self.t.get(f"{base}_{v}.png", local)
+                paths[v] = str(local)
+        except TransportError as e:
+            return _error(str(e))
+        return {"status": "ok", "paths": paths, "shown": res.get("shown"), "highlight": highlight, "source": "live"}

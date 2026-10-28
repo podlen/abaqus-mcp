@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "model_summary.schema.json",
+  "title": "model_summary",
+  "description": "Summary of one Abaqus/CAE model. Units are the model's own. Lists and dicts longer than the cap are cut; the cut path and the number of dropped items go in the top-level `omitted`. Optional keys are absent when the value is unknown or zero.",
+  "type": "object",
+  "required": ["source", "model", "models", "parts", "instances", "sets", "surfaces", "materials", "sections", "assignments", "steps", "loads", "bcs", "interactions", "contact_props", "mesh", "omitted"],
+  "additionalProperties": false,
+  "properties": {
+    "source": {"type": "string", "description": "`live` for the open CAE session, else the .cae file name."},
+    "model": {"type": "string", "description": "Model summarised."},
+    "models": {"type": "array", "items": {"type": "string"}, "description": "All model names in the database."},
+    "parts": {"type": "object", "additionalProperties": {"$ref": "#/$defs/part"}},
+    "instances": {"type": "object", "additionalProperties": {"$ref": "#/$defs/instance"}},
+    "sets": {"type": "object", "description": "Assembly sets by name.", "additionalProperties": {"$ref": "#/$defs/counts"}},
+    "surfaces": {"type": "object", "description": "Assembly surfaces by name.", "additionalProperties": {"$ref": "#/$defs/counts"}},
+    "materials": {"type": "object", "additionalProperties": {"$ref": "#/$defs/material"}},
+    "sections": {"type": "object", "additionalProperties": {"$ref": "#/$defs/section"}},
+    "assignments": {"type": "array", "items": {"$ref": "#/$defs/assignment"}},
+    "steps": {"type": "array", "description": "In analysis order.", "items": {"$ref": "#/$defs/step"}},
+    "loads": {"type": "array", "items": {"$ref": "#/$defs/load"}},
+    "bcs": {"type": "array", "items": {"$ref": "#/$defs/bc"}},
+    "interactions": {"type": "array", "items": {"$ref": "#/$defs/interaction"}},
+    "contact_props": {"type": "object", "additionalProperties": {"$ref": "#/$defs/contact_prop"}},
+    "mesh": {"$ref": "#/$defs/mesh"},
+    "omitted": {"type": "object", "description": "Dotted path of a cut list or dict -> number of items dropped, e.g. `parts.Billet.features`: 7. Empty when nothing was cut.", "additionalProperties": {"type": "integer", "minimum": 1}}
+  },
+  "$defs": {
+    "counts": {
+      "type": "object",
+      "description": "Entity counts of a set or surface; a key is absent when the count is 0. Geometry: cells, faces, edges, vertices. Mesh: nodes, elems.",
+      "additionalProperties": false,
+      "properties": {
+        "cells": {"type": "integer"}, "faces": {"type": "integer"}, "edges": {"type": "integer"},
+        "vertices": {"type": "integer"}, "nodes": {"type": "integer"}, "elems": {"type": "integer"}
+      }
+    },
+    "bbox": {"type": "array", "description": "[xmin, ymin, zmin, xmax, ymax, zmax].", "items": {"type": "number"}, "minItems": 6, "maxItems": 6},
+    "part": {
+      "type": "object",
+      "required": ["dim", "type", "cells", "faces", "edges", "features", "sets", "surfaces"],
+      "additionalProperties": false,
+      "properties": {
+        "dim": {"enum": ["3D", "2D", "AXI"], "description": "AXI is axisymmetric."},
+        "type": {"type": "string", "description": "Part type constant, e.g. DEFORMABLE_BODY, ANALYTIC_RIGID_SURFACE."},
+        "bbox": {"$ref": "#/$defs/bbox"},
+        "cells": {"type": "integer"}, "faces": {"type": "integer"}, "edges": {"type": "integer"}, "vertices": {"type": "integer"},
+        "features": {"type": "array", "items": {"type": "string"}, "description": "Feature names in creation order."},
+        "edge_radii": {"type": "array", "items": {"type": "number"}, "description": "Distinct radii of circular edges, rounded to 4 significant digits, ascending; absent when there are none. A hole or bore of diameter D shows as D/2."},
+        "face_radii": {"type": "array", "items": {"type": "number"}, "description": "Distinct radii of cylindrical or spherical faces, same rounding and order; absent when there are none."},
+        "sets": {"type": "object", "additionalProperties": {"$ref": "#/$defs/counts"}},
+        "surfaces": {"type": "object", "additionalProperties": {"$ref": "#/$defs/counts"}}
+      }
+    },
+    "instance": {
+      "type": "object",
+      "required": ["part", "dependent"],
+      "additionalProperties": false,
+      "properties": {"part": {"type": "string"}, "dependent": {"type": "boolean"},
+        "bbox": {"type": "array", "minItems": 6, "maxItems": 6, "items": {"type": "number"}, "description": "[xmin, ymin, zmin, xmax, ymax, zmax] in assembly coordinates, after translate/rotate. For a rotated instance, a vertex-based approximation."},
+        "translation": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"type": "number"}, "description": "Instance translation in assembly coordinates, present when nonzero."},
+        "rotation": {"type": "array", "minItems": 7, "maxItems": 7, "items": {"type": "number"}, "description": "[ax, ay, az, bx, by, bz, angle_deg]: rotation about the axis a to b, present when the angle is nonzero."}}
+    },
+    "table": {"type": "array", "description": "Data rows as entered, at most 20.", "items": {"type": "array", "items": {"type": "number"}}},
+    "material": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "elastic": {"type": "object", "required": ["table"], "additionalProperties": false,
+          "properties": {"type": {"type": "string", "description": "ISOTROPIC, ENGINEERING_CONSTANTS, ..."}, "table": {"$ref": "#/$defs/table"}}},
+        "plastic": {"type": "object", "required": ["table"], "additionalProperties": false,
+          "properties": {"hardening": {"type": "string", "description": "ISOTROPIC, KINEMATIC, ..."}, "table": {"$ref": "#/$defs/table", "description": "Rows [yield stress, plastic strain]."}}},
+        "density": {"$ref": "#/$defs/table"}
+      }
+    },
+    "section": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {"type": {"type": "string", "description": "Section class, e.g. HomogeneousSolidSection."}, "material": {"type": "string"}, "thickness": {"type": "number"}}
+    },
+    "assignment": {
+      "type": "object",
+      "required": ["part", "section"],
+      "additionalProperties": false,
+      "properties": {"part": {"type": "string"}, "section": {"type": "string"}, "region": {"type": "string", "description": "Set name, else the region text."}}
+    },
+    "step": {
+      "type": "object",
+      "required": ["name", "procedure"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string"},
+        "procedure": {"type": "string", "description": "Step class, e.g. StaticStep, FrequencyStep."},
+        "nlgeom": {"type": "boolean"},
+        "time_period": {"type": "number"},
+        "initial_inc": {"type": "number"}, "min_inc": {"type": "number"}, "max_inc": {"type": "number"},
+        "max_num_inc": {"type": "integer"},
+        "inc_method": {"type": "string", "description": "AUTOMATIC or FIXED."}
+      }
+    },
+    "load": {
+      "type": "object",
+      "required": ["name", "type", "step"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string"}, "type": {"type": "string", "description": "Load class, e.g. ConcentratedForce, Pressure."},
+        "step": {"type": "string", "description": "Step that creates it."}, "region": {"type": "string"},
+        "values": {"type": "object", "description": "Component name -> value, e.g. cf2, magnitude.", "additionalProperties": {"type": "number"}}
+      }
+    },
+    "bc": {
+      "type": "object",
+      "required": ["name", "type", "step"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string"}, "type": {"type": "string", "description": "BC class, e.g. DisplacementBC, EncastreBC."},
+        "step": {"type": "string"}, "region": {"type": "string"},
+        "values": {"type": "object", "description": "Constrained components u1..ur3 -> value; absent for Encastre, Symmetry.", "additionalProperties": {"type": "number"}}
+      }
+    },
+    "interaction": {
+      "type": "object",
+      "required": ["name", "type", "step"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string"}, "type": {"type": "string", "description": "Interaction class, e.g. SurfaceToSurfaceContactStd."},
+        "step": {"type": "string"}, "prop": {"type": "string", "description": "Contact property name."},
+        "discretization": {"type": "string", "description": "SURFACE_TO_SURFACE or NODE_TO_SURFACE, where the interaction has it."},
+        "sliding": {"type": "string", "description": "FINITE or SMALL, where the interaction has it."},
+        "main": {"type": "string", "description": "Main (formerly master) surface name."}, "secondary": {"type": "string", "description": "Secondary (formerly slave) surface name."}
+      }
+    },
+    "contact_prop": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "friction": {"type": "array", "items": {"type": "number"}, "description": "First tangential-behavior row, e.g. [mu]."},
+        "normal": {"type": "string", "description": "Pressure-overclosure, e.g. HARD."}
+      }
+    },
+    "mesh": {
+      "type": "object",
+      "required": ["nodes", "elems", "types", "unmeshed"],
+      "additionalProperties": false,
+      "properties": {
+        "nodes": {"type": "integer", "description": "Over all instances (a dependent instance counts its part's mesh), else over parts when there are no instances."},
+        "elems": {"type": "integer"},
+        "types": {"type": "object", "description": "Element type code -> count, same basis as nodes.", "additionalProperties": {"type": "integer"}},
+        "unmeshed": {"type": "array", "items": {"type": "string"}, "description": "Parts with geometry, no analytic rigid surface and no elements."}
+      }
+    }
+  }
+}

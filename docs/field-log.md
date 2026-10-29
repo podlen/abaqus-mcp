@@ -50,3 +50,9 @@ One entry per problem. "Cause" says whether the server, the script or the model 
     A whole-part `generateMesh` gave 0 nodes and no message. Cause: skill (no partition strategy) and
     tool (`cut` selected cells only by points). Fix: `cut(box=...)`, `mesh_report` `unmeshed_at`, skill
     rules on zone-local cuts, tangent points and slivers.
+13. **Plane cuts toward an inset shell/core boundary gave zero-volume elements** (run 3).
+    Variant A: 122 elements of zero or negative volume in the datacheck, at the tangent where the bore
+    U walls meet the ring and at a 0.2 mm sliver. Variant B: planar cuts on a 25-face bore shell cell
+    raised "Feature creation failed" and left 2 tet cells. Cause: skill and tool (no way to build an
+    offset region as a solid). Fix: `prism`, `tool_box`, `tool_cylinder`, `imprint`; the skill builds
+    such a region as its own solid and uses plane cuts only for meshability.

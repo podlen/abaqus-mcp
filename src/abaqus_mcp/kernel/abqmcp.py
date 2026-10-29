@@ -5,8 +5,8 @@ import builtins
 import math
 
 from abaqus import mdb
-from abaqusConstants import (DEFORMABLE_BODY, DELETE, ELEM_SHAPE, FREE, GEOMETRY, HEX, OFF, ON, SINGLE,
-                             STRUCTURED, SWEEP, TECHNIQUE, TET, THREE_D, XYPLANE, XZPLANE, YZPLANE)
+from abaqusConstants import (DEFORMABLE_BODY, DELETE, ELEM_SHAPE, FREE, GEOMETRY, HEX, LEFT, OFF, ON, RIGHT,
+                             SINGLE, STRUCTURED, SWEEP, TECHNIQUE, TET, THREE_D, XYPLANE, XZPLANE, YZPLANE)
 import assembly  # noqa: F401  (registers the assembly methods)
 import mesh  # noqa: F401
 import part  # noqa: F401  (registers mdb.openStep and the part methods)
@@ -106,6 +106,179 @@ def cut(p, x=(), y=(), z=(), planes=(), cells=None, box=None):
         except Exception as e:  # noqa: BLE001
             skipped.append("plane %r n %r: %s" % (_pt(q), list(nrm), str(e)[:80]))
     return {"cells": len(p.cells), "cuts": done, "skipped": skipped}
+
+
+def _free(m, base):
+    """A name not yet used by a part or an assembly instance."""
+    taken = set(m.parts.keys()) | set(m.rootAssembly.instances.keys()) | set(m.sketches.keys())
+    name, i = base, 1
+    while name in taken or name + "-1" in taken:
+        name, i = "%s_%d" % (base, i), i + 1
+    return name
+
+
+def _extrude(m, base, sketch, depth):
+    """Instance of a new part extruded from sketch over local z 0..depth."""
+    c = m.Part(name=_free(m, base), dimensionality=THREE_D, type=DEFORMABLE_BODY)
+    c.BaseSolidExtrude(sketch=sketch, depth=float(depth))
+    return m.rootAssembly.Instance(name=c.name + "-1", part=c, dependent=ON)
+
+
+def prism(p, face, span, offset=0.0, name="Prism", model=None):
+    """Solid prism from the outline of a planar face of p (a point on it; normal along x, y or z; one
+    loop of lines and circular arcs): the outline offset inward by `offset` (negative: outward),
+    extruded over span = (a, b) along the face normal. Returns an assembly instance in p's frame,
+    for imprint()."""
+    m = _model(model)
+    a = m.rootAssembly
+    f = p.faces.findAt((tuple(float(c) for c in face),))[0]
+    n = [abs(c) for c in f.getNormal()]
+    k = n.index(max(n))
+    if max(n) < 1 - 1e-9:
+        raise ValueError("face normal %r is not along x, y or z" % (_pt(f.getNormal()),))
+    u, v = (k + 1) % 3, (k + 2) % 3  # sketch axes; local z maps to axis k
+
+    def uv(q):
+        return (q[u], q[v])
+
+    def outline(tag):
+        s = m.ConstrainedSketch(name=_free(m, name + tag), sheetSize=1000.0)
+        for ei in f.getEdges():
+            e = p.edges[ei]
+            vs = e.getVertices()
+            if len(vs) != 2:
+                raise ValueError("closed edge at %r in the outline" % (_pt(e.pointOn[0]),))
+            q0, q1 = (p.vertices[i].pointOn[0] for i in vs)
+            q = e.pointOn[0]
+            try:
+                e.getRadius()
+                s.Arc3Points(point1=uv(q0), point2=uv(q1), point3=uv(q))
+            except Exception:  # noqa: BLE001  not a circular edge
+                d = [uv(q1)[i] - uv(q0)[i] for i in (0, 1)]
+                w = [uv(q)[i] - uv(q0)[i] for i in (0, 1)]
+                if abs(d[0] * w[1] - d[1] * w[0]) > 1e-6 * (d[0] ** 2 + d[1] ** 2):
+                    raise ValueError("edge at %r is neither a line nor an arc" % (_pt(q),))
+                s.Line(point1=uv(q0), point2=uv(q1))
+        return s
+
+    depth = float(span[1]) - float(span[0])
+    if not offset:
+        inst = _extrude(m, name, outline(""), depth)
+    else:
+        full = f.getSize(printResults=False) * depth
+        inst, errors = None, []
+        for side in (LEFT, RIGHT):
+            try:
+                s = outline("_%s" % side)
+                orig = tuple(s.geometry.values())
+                s.offset(distance=abs(float(offset)), objectList=orig, side=side)
+                s.delete(objectList=orig)
+                i = _extrude(m, name, s, depth)
+            except Exception as e:  # noqa: BLE001
+                errors.append(str(e)[:80])
+                continue
+            if (m.parts[i.partName].getVolume() < full) == (offset > 0):
+                inst = i
+                break
+            pn = i.partName
+            del a.instances[i.name]
+            del m.parts[pn]
+        if inst is None:
+            raise ValueError("offset %g of the outline failed: %r" % (offset, errors))
+    if k != 2:  # cyclic axis permutation: local (x, y, z) -> axes (u, v, k)
+        a.rotate(instanceList=(inst.name,), axisPoint=(0.0, 0.0, 0.0), axisDirection=(1.0, 1.0, 1.0),
+                 angle=120.0 * (k + 1))
+    shift = [0.0, 0.0, 0.0]
+    shift[k] = float(span[0])
+    a.translate(instanceList=(inst.name,), vector=tuple(shift))
+    return inst
+
+
+def tool_box(lo, hi, name="Box", model=None):
+    """Box from corner lo = (xmin, ymin, zmin) to hi = (xmax, ymax, zmax), as an assembly instance."""
+    m = _model(model)
+    s = m.ConstrainedSketch(name=_free(m, name), sheetSize=1000.0)
+    s.rectangle(point1=(float(lo[0]), float(lo[1])), point2=(float(hi[0]), float(hi[1])))
+    inst = _extrude(m, name, s, float(hi[2]) - float(lo[2]))
+    m.rootAssembly.translate(instanceList=(inst.name,), vector=(0.0, 0.0, float(lo[2])))
+    return inst
+
+
+def tool_cylinder(p0, p1, r, name="Cyl", model=None):
+    """Cylinder of radius r with its axis from point p0 to point p1, as an assembly instance."""
+    m = _model(model)
+    a = m.rootAssembly
+    d = [float(q) - float(o) for o, q in zip(p0, p1)]
+    L = math.sqrt(sum(c * c for c in d))
+    s = m.ConstrainedSketch(name=_free(m, name), sheetSize=1000.0)
+    s.CircleByCenterPerimeter(center=(0.0, 0.0), point1=(float(r), 0.0))
+    inst = _extrude(m, name, s, L)
+    d = [c / L for c in d]
+    ax = (-d[1], d[0], 0.0)  # z x d
+    if math.hypot(ax[0], ax[1]) > 1e-12:
+        a.rotate(instanceList=(inst.name,), axisPoint=(0.0, 0.0, 0.0), axisDirection=ax,
+                 angle=math.degrees(math.acos(max(-1.0, min(1.0, d[2])))))
+    elif d[2] < 0:
+        a.rotate(instanceList=(inst.name,), axisPoint=(0.0, 0.0, 0.0), axisDirection=(1.0, 0.0, 0.0), angle=180.0)
+    a.translate(instanceList=(inst.name,), vector=tuple(float(c) for c in p0))
+    return inst
+
+
+def imprint(p, region, minus=(), sets=("REGION", "REST"), min_volume=0.0, name=None, model=None):
+    """Split p into cells along the boundary of a solid region: `region` minus the `minus` solids
+    (assembly instances in p's frame from prism, tool_box, tool_cylinder) is merged into p with
+    InstanceFromBooleanMerge(keepIntersections=ON). The region must lie inside p. The merged part
+    replaces p (or is called `name`) and gets part sets sets[0] (region cells of at least min_volume)
+    and sets[1] (the rest); tool parts are deleted. Region cells are told apart by volume.
+    Returns check_part() plus the cell volumes per set and the volume mismatch."""
+    m = _model(model)
+    a = m.rootAssembly
+    tmp = [i.partName for i in (region,) + tuple(minus)]
+    if minus:
+        cut_name = _free(m, p.name + "_region")
+        a.InstanceFromBooleanCut(name=cut_name, instanceToBeCut=region, cuttingInstances=tuple(minus),
+                                 originalInstances=DELETE)
+        region = a.instances[cut_name + "-1"]
+        tmp.append(cut_name)
+    rp = m.parts[region.partName]
+    vr = [rp.getVolume(cells=rp.cells[i:i + 1]) for i in range(len(rp.cells))]
+    v0 = p.getVolume()
+    new = _free(m, (name or p.name) + "_imprint")
+    body = a.Instance(name=_free(m, p.name + "_body") + "-1", part=p, dependent=ON)
+    a.InstanceFromBooleanMerge(name=new, instances=(body, region), keepIntersections=ON,
+                               originalInstances=DELETE, domain=GEOMETRY)
+    del a.instances[new + "-1"]
+    for t in set(tmp):
+        del m.parts[t]
+    k = m.parts[new]
+    vm = [k.getVolume(cells=k.cells[i:i + 1]) for i in range(len(k.cells))]
+    if abs(sum(vm) - v0) > 1e-6 * v0:
+        raise ValueError("region sticks out of the part: volume %g -> %g" % (v0, sum(vm)))
+    free, reg, mis = list(range(len(vm))), [], 0.0
+    for v in sorted(vr, reverse=True):
+        j = min(free, key=lambda i: abs(vm[i] - v))
+        mis = max(mis, abs(vm[j] - v) / v)
+        free.remove(j)
+        if v >= min_volume:
+            reg.append(j)
+    if mis > 1e-4:
+        raise ValueError("region cells do not match merged cells by volume (mismatch %.2g)" % mis)
+    rest = [i for i in range(len(vm)) if i not in reg]
+    for set_name, ids in zip(sets, (reg, rest)):
+        if ids:
+            k.Set(name=set_name, cells=sum((k.cells[i:i + 1] for i in ids[1:]), k.cells[ids[0]:ids[0] + 1]))
+    if name is None or name == p.name:
+        old = p.name
+        del m.parts[old]
+        m.parts.changeKey(fromName=new, toName=old)
+        k = m.parts[old]
+    elif name != new:
+        m.parts.changeKey(fromName=new, toName=name)
+        k = m.parts[name]
+    out = check_part(k)
+    out.update({sets[0]: sorted(round(vm[i], 3) for i in reg), sets[1]: sorted(round(vm[i], 3) for i in rest),
+                "mismatch": mis})
+    return out
 
 
 def mesh_plan(p, prefer=(STRUCTURED, SWEEP), tet=True):

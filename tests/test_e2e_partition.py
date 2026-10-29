@@ -98,3 +98,31 @@ def test_helpers_views_summary(tmp_path):
     for p in v["paths"].values():
         head = Path(p).read_bytes()[:24]
         assert head[:8] == b"\x89PNG\r\n\x1a\n" and struct.unpack(">II", head[16:24]) == (900, 600)
+
+IMPRINT = '''import json
+from abaqus import mdb
+import abqmcp as h
+p = h.import_solid("block_hole.step", "Blk")
+core = h.prism(p, (20.0, 0.0, 5.0), span=(1.0, 19.0), offset=1.0)  # face y = 0: x 1..39, z 1..9
+minus = [h.tool_box((30, -1, -1), (41, 21, 11)), h.tool_cylinder((20, 10, -1), (20, 10, 11), 6.0),
+         h.tool_cylinder((10, -1, 5), (10, 21, 5), 2.0)]
+out = {"imprint": h.imprint(p, core, minus, sets=("CORE", "SHELL"))}
+p = mdb.models["Model-1"].parts["Blk"]
+h.cut(p, x=(20.0,))
+out["after_cut"] = [len(p.sets["CORE"].cells), len(p.sets["SHELL"].cells), len(p.cells)]
+out["leftover"] = sorted(mdb.models["Model-1"].parts.keys()) + sorted(mdb.models["Model-1"].rootAssembly.instances.keys())
+print(json.dumps(out))
+'''
+
+
+def test_imprint(tmp_path):
+    r = _run(tmp_path, "imprint.py", IMPRINT, inputs=[str(FIX / "block_hole.step")])
+    assert r["status"] == "ok", r
+    out = json.loads(next(ln for ln in r["print_output"].splitlines() if ln.startswith("{")))
+    imp = out["imprint"]
+    assert imp["valid"] and imp["cells"] == 2 and imp["mismatch"] < 1e-6
+    v_core = 8 * 18 * 29 - 3.14159265 * 36 * 8 - 3.14159265 * 4 * 18  # prism to x = 30, minus both cylinders
+    assert imp["CORE"] == [pytest.approx(v_core, rel=1e-6)]
+    assert imp["SHELL"] == [pytest.approx(8000 - 250 * 3.14159265 - v_core, rel=1e-6)]
+    assert out["after_cut"] == [2, 2, 4]  # sets follow the cells through a later cut
+    assert out["leftover"] == ["Blk"]

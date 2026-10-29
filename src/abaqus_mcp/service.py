@@ -322,7 +322,8 @@ class Service:
         """Runs a Python script in Abaqus/CAE (`abaqus cae noGUI`) in the job dir. The CAE modules are
         loaded first (mdb.openStep, part and mesh methods exist; no star import, so import what you
         use: `from abaqus import mdb`, `from abaqusConstants import *`). `import abqmcp` gives the
-        partition and mesh helpers (import_solid, cut, mesh_plan, seed_bias, mesh_report).
+        partition and mesh helpers (import_solid, prism, tool_box, tool_cylinder, imprint, cut,
+        mesh_plan, seed_bias, mesh_report).
         inputs: host files (bare names from the project dir, or paths) uploaded to the job dir first.
         outputs: file names copied from the job dir to <project>/<job>/ afterwards, listed in
         `fetched` and `missing`. print() comes back as `print_output`, sys.__stdout__ as `stdout`,

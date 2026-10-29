@@ -60,7 +60,16 @@ Each script imports what it uses (`from abaqus import mdb`, `from abaqusConstant
 The helpers come from `import abqmcp as h`:
 
 1. `p = h.import_solid("part.step", "Name")` gives one valid part. A file with several bodies is merged into one part with shared faces. An invalid result raises with the entity counts.
-2. `h.cut(p, x=[...], y=[...], z=[...], planes=[((pt), (normal)), ...], box=(xmin, ymin, zmin, xmax, ymax, zmax))` cuts cells by planes.
+2. A region with its own section (a shell and a core, an insert, a coating) is a solid of its own, imprinted into the part:
+   ```python
+   core = h.prism(p, face_pt, span=(a, b), offset=t)   # outline of a planar face, inset by t, extruded a..b along its normal
+   minus = [h.tool_cylinder(p0, p1, r), h.tool_box(lo, hi)]   # what the region leaves out
+   h.imprint(p, core, minus, sets=("CORE", "SHELL"), min_volume=v_min)
+   ```
+   `imprint` splits p along the region boundary, makes the two cell sets and checks the cell volumes; region pieces under `min_volume` go to the second set.
+   Building an inset boundary from plane cuts gave slivers, zero-volume elements and tet cells (field-log entries 12 and 13).
+   The cuts in step 3 then only make the cells meshable; the sets follow the cells through them.
+3. `h.cut(p, x=[...], y=[...], z=[...], planes=[((pt), (normal)), ...], box=(xmin, ymin, zmin, xmax, ymax, zmax))` cuts cells by planes.
    `box` limits the cut to the cells wholly inside it (`cells=[pt, ...]` names cells by points).
    Planes that cut nothing are listed in `skipped`.
    Plan the cuts per zone (a tab with holes, a wall with a bore) before writing them:
@@ -70,17 +79,17 @@ The helpers come from `import abqmcp as h`:
    - Partition only along real boundaries: a section boundary, a load or BC patch, a zone edge.
      A shell around a hole whose ligament box reaches the surface is a U (half ring plus two straight walls), not a full ring plus a box.
    - Keep the count low. A cell narrower than about half the element size forces its seed count onto every neighbour.
-3. `h.mesh_plan(p)` tries hex STRUCTURED, then hex SWEEP, per cell, and falls back to tet FREE.
+4. `h.mesh_plan(p)` tries hex STRUCTURED, then hex SWEEP, per cell, and falls back to tet FREE.
    It returns the technique counts and a point on each non-hex cell.
    Add cuts through the cells in `non_hex` and run it again; `tet=False` leaves those cells unassigned.
-4. Seeds: `p.seedPart(size=h0)`, then `h.seed_bias(p, edges=[pt, ...], fine=pt, min_size, max_size)` for grading toward a stress peak.
+5. Seeds: `p.seedPart(size=h0)`, then `h.seed_bias(p, edges=[pt, ...], fine=pt, min_size, max_size)` for grading toward a stress peak.
    `seed_bias` works out the sense of each edge itself.
-5. `p.generateMesh()`, then `h.mesh_report(p)`: nodes, element types, techniques, unmeshed cells with a point on each, quality checks.
+6. `p.generateMesh()`, then `h.mesh_report(p)`: nodes, element types, techniques, unmeshed cells with a point on each, quality checks.
    It warns above 250 000 nodes, the Teaching Edition limit.
    `generateMesh` prints nothing when it fails; 0 nodes or `unmeshed_cells` > 0 is the only sign.
    Structured and swept cells need the same node count on opposite edges across every chain of neighbours.
    Unmeshed cells at slivers or tangent corners need fewer or other cuts there; more seeds do not help.
-6. Save the .cae in the same script. Check the mesh with `model_summary(job, cae_file=..., only=["mesh"])`, whose `mesh.techniques` counts cells per technique.
+7. Save the .cae in the same script. Check the mesh with `model_summary(job, cae_file=..., only=["mesh"])`, whose `mesh.techniques` counts cells per technique.
 
 One script builds the whole model: geometry, cuts, mesh, sections, steps, loads and BCs.
 After a failed run, fix that script and rerun it. A new script for each step costs a CAE start each time.

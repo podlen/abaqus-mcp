@@ -90,7 +90,7 @@ C9. Both transports. Pre-condition: VM up, `bin/abaqus-vpn up`. check: Linux `uv
 - Probe 2026-10-29: in a `cae noGUI` script `sum` is the Abaqus one even without a star import;
   `import caeModules` alone makes `mdb.openStep` exist; `setMeshControls(technique=STRUCTURED)` on an
   unmappable cell raises `AbaqusException: Some regions cannot be Mapped.` and keeps the old control.
-- Tool schemas stay under 10 kB after the change: 9459 bytes (measured 2026-10-29).
+- Tool schemas stay under 10 kB after the change: 9531 bytes (measured 2026-10-29, after `imprint`).
 
 ## Ruled out
 - Partitioning in FreeCAD with a multi-cell STEP export (field-log entries 5, 7, 11).
@@ -126,3 +126,8 @@ C9. Both transports. Pre-condition: VM up, `bin/abaqus-vpn up`. check: Linux `uv
   cuts x = 27.35 / 30.65 on the 25-face bore shell cell raised "Feature creation failed". No sites.
   Transcript: no source reads, no private calls. Tally: 75 run_script, 4 submit_job, 93 Bash,
   4 Read; 23.3 M cache-read, 1.37 M cache-write, 0.46 M output tokens; 4.6 h.
+- 2026-10-29: after run 3: `prism`, `tool_box`, `tool_cylinder`, `imprint` in abqmcp. Probe on
+  bracket (inset 1.35, Y 0.6..19.4, hole cylinders, bore ligament box, block box, min_volume 50):
+  valid, 4 cells, CORE 707.772 + 4531.017 = 5238.79 mm³ (FreeCAD reference 5238.79), SHELL 23.046 +
+  7764.925. ssh E2E `test_imprint` passed (volumes, sets kept through a later cut, no leftover parts).
+  Run 3 leftovers moved out of `native/`. Round counter for run 4 reset to 3 (source: user).

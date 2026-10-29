@@ -106,3 +106,13 @@ C9. Both transports. Pre-condition: VM up, `bin/abaqus-vpn up`. check: Linux `uv
   reinstalled in the VM (`vm/install-live-plugin.sh`).
 - 2026-10-29: C8 inputs in `bracket/native/` (STEP, `cells.json` without the cell list,
   `post_abq.py`, `sites.py`, `run.json`, `brief.md`).
+- 2026-10-29: C8 run 1 (sonnet) blocked before any tool use of the new code: this session's server
+  process dated from 2026-10-28 21:12; `/mcp` reconnect restarted it (08:09). The run also found a
+  brief error: the core box is X −10.65..1.35, Z 0..10 (fixed in brief.md).
+- 2026-10-29: C8 run 2 (sonnet) BLOCKED at the mesh, 0 submit_job rounds. 636 cells (568 STRUCTURED,
+  68 SWEEP by `mesh_plan`, 0 tet), SHELL 512 / CORE 124 cells; whole-part `generateMesh` gave 0
+  nodes with no message, per cell 205 unmeshed (seed-count conflicts). Causes the agent named:
+  whole-part cuts for the tab holes made 0.35 mm slivers in the bore wall (`cut(cells=...)` was not
+  used), and the full ring r + 1.35 tangent to the ligament box planes. Transcript: no source reads,
+  no private calls (grep hits were tool names). Tally: 45 run_script, 61 Bash, 4 Read, 1 set_project;
+  14.7 M cache-read, 0.49 M cache-write, 0.27 M output tokens (2026-10-28 run: 44.5 M cache-read).

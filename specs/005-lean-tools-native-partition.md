@@ -116,3 +116,13 @@ C9. Both transports. Pre-condition: VM up, `bin/abaqus-vpn up`. check: Linux `uv
   used), and the full ring r + 1.35 tangent to the ligament box planes. Transcript: no source reads,
   no private calls (grep hits were tool names). Tally: 45 run_script, 61 Bash, 4 Read, 1 set_project;
   14.7 M cache-read, 0.49 M cache-write, 0.27 M output tokens (2026-10-28 run: 44.5 M cache-read).
+- 2026-10-29: after run 2: `cut(box=...)`, `mesh_report` `unmeshed_at` (`Cell.getElements()` is None
+  when unmeshed), skill partition-strategy rules, field-log entry 12. Partition E2E over ssh: 2 passed.
+- 2026-10-29: C8 run 3 (sonnet) BLOCKED after 2 of 3 rounds (plus 2 submit_job calls rejected for
+  a missing `cae_file`). Variant A, 102 cells (67 STRUCTURED, 35 SWEEP), 88 283 nodes, 0 unmeshed:
+  both rounds failed in the datacheck, "The volume of 122 elements is zero, small, or negative"
+  (about 90 at the bore U, where the straight walls meet the full ring at a tangent; about 30 at a
+  0.2 mm sliver next to the z_patch cut). Variant B (half ring): 15 bad elements, 2 tet cells; planar
+  cuts x = 27.35 / 30.65 on the 25-face bore shell cell raised "Feature creation failed". No sites.
+  Transcript: no source reads, no private calls. Tally: 75 run_script, 4 submit_job, 93 Bash,
+  4 Read; 23.3 M cache-read, 1.37 M cache-write, 0.46 M output tokens; 4.6 h.

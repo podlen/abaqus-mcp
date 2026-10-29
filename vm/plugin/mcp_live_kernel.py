@@ -11,6 +11,9 @@ import traceback
 def run(script_path, out_path):
     t0 = time.time()
     ns = {"__name__": "__main__", "__file__": script_path}
+    live = os.path.dirname(os.path.dirname(os.path.abspath(script_path)))  # <live>/inbox/<id>.py
+    if live not in sys.path:
+        sys.path.append(live)  # abqmcp.py, put there by the MCP
     try:
         exec("from abaqus import *\nfrom abaqusConstants import *\nfrom caeModules import *", ns)
     except Exception:

@@ -134,7 +134,8 @@ from abaqus import *
 from abaqusConstants import *
 from caeModules import *
 mdb = openMdb(pathName=P["cae"])
-_emit(dict(render_views(mdb, session, session.viewports["Viewport: 1"], P["model"], P["base"], P["highlight"]), ok=True))
+_emit(dict(render_views(mdb, session, session.viewports["Viewport: 1"], P["model"], P["base"], P["highlight"],
+                        P["views"], P["size"]), ok=True))
 '''
 
 _WRITE_INP = '''
@@ -198,9 +199,9 @@ def model_summary(cae, model=None, source=None, result=None) -> str:
                   dict(cae=cae, model=model, source=source or cae, result=result))
 
 
-def model_views(cae, base, model=None, highlight=None) -> str:
+def model_views(cae, base, model=None, highlight=None, views=("iso", "front", "top"), size=(900, 600)) -> str:
     return _build(_kernel("views.py") + _VIEWS_CALL,
-                  dict(cae=cae, model=model, base=base, highlight=highlight))
+                  dict(cae=cae, model=model, base=base, highlight=highlight, views=list(views), size=list(size)))
 
 
 def write_inp(cae, model, job) -> str:
@@ -230,7 +231,7 @@ os.makedirs(os.path.dirname({base!r}), exist_ok=True)
 _vp = session.viewports[session.currentViewportName]
 _old = _vp.displayedObject
 try:
-    result = render_views(mdb, session, _vp, {model!r}, {base!r}, {highlight!r})
+    result = render_views(mdb, session, _vp, {model!r}, {base!r}, {highlight!r}, {views!r}, {size!r})
 finally:
     try:
         _vp.setValues(displayedObject=_old)
@@ -243,5 +244,6 @@ def live_summary(model=None) -> str:
     return _kernel("summary.py") + _LIVE_SUMMARY.format(model=model)
 
 
-def live_views(base, model=None, highlight=None) -> str:
-    return _kernel("views.py") + _LIVE_VIEWS.format(base=base, model=model, highlight=highlight)
+def live_views(base, model=None, highlight=None, views=("iso", "front", "top"), size=(900, 600)) -> str:
+    return _kernel("views.py") + _LIVE_VIEWS.format(base=base, model=model, highlight=highlight,
+                                                    views=list(views), size=tuple(size))

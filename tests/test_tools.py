@@ -63,18 +63,54 @@ def test_guard_blocks_run_script_and_submit(make, tmp_path):
 def test_run_script_ok_and_traceback(make, tmp_path):
     s = tmp_path / "bad.py"
     s.write_text("x")
-    svc, t = make(lambda c: ok(OUT_ERR, TB, 0) if "noGUI=bad.py" in c else ok("#: hi\n#* ValueError: x\n") if "Get-Content" in c and "abaqus.rpy" in c else None)
+    svc, t = make(lambda c: ok(OUT_ERR, TB, 0) if "noGUI=_mcp_run.py" in c else ok("#: hi\n#* ValueError: x\n") if "Get-Content" in c and "abaqus.rpy" in c else None)
     r = svc.run_script("job1", str(s))
     assert r["status"] == "error" and r["exit_code"] == 0
     assert r["traceback"].startswith("ValueError: deliberate") and "QAE" not in r["traceback"]
     assert r["error"] == "ValueError: deliberate"
     assert t.puts[svc.vm_root + "\\job1\\bad.py"] == "x"
-    assert any(c.rstrip().endswith("abaqus.bat' cae noGUI=bad.py; exit $LASTEXITCODE") for c in t.commands)
+    assert "def import_solid(" in t.puts[svc.vm_root + "\\job1\\abqmcp.py"]
+    w = t.puts[svc.vm_root + "\\job1\\_mcp_run.py"]
+    assert "compile(_fh.read(), 'bad.py', \"exec\")" in w and "from caeModules import" not in w
+    compile(w, "_mcp_run.py", "exec")
+    assert any(c.rstrip().endswith("abaqus.bat' cae noGUI=_mcp_run.py; exit $LASTEXITCODE") for c in t.commands)
+    assert "QAE" not in r["stderr"]
     svc2, _ = make(lambda c: ok("#: printed line\n#: second\n#* old\n") if "Get-Content" in c else ok("done"))
     r2 = svc2.run_script("job1", str(s))
     assert r2["status"] == "ok" and r2["print_output"] == "printed line\nsecond"
+    assert "stderr" not in r2 and "traceback" not in r2 and "fetched" not in r2
     svc3, _ = make(lambda c: ok("#* ValueError: from rpy\n") if "Get-Content" in c else ok(OUT_ERR, "")) 
     assert svc3.run_script("job1", str(s))["traceback"] == "ValueError: from rpy"
+
+
+def test_run_script_compact_output(make, tmp_path):
+    s = tmp_path / "a.py"
+    s.write_text("x")
+    rpy = '#: Executing "onCaeGraphicsStartup()" in the site directory ...\n' + "#: dup vertex  \n" * 231 + "#: end\n"
+    svc, _ = make(lambda c: ok(rpy) if "Get-Content" in c else ok("y" * 10000))
+    r = svc.run_script("j", str(s))
+    assert r["print_output"] == "dup vertex [x231]\nend"
+    assert r["stdout"] == "[... 6000 chars cut]\n" + "y" * 4000
+    assert len(json.dumps(r)) < 4300
+
+
+def test_compact():
+    from abaqus_mcp.service import compact
+    assert compact("a\na\nb\na", 0) == "a [x2]\nb\na"
+    assert compact("", 10) == ""
+
+
+def test_run_script_inputs_outputs(make, tmp_path):
+    s = tmp_path / "a.py"
+    s.write_text("x")
+    (tmp_path / "geo.step").write_text("STEP")
+    svc, t = make()
+    t.missing = {svc.vm_root + "\\j\\gone.csv"}
+    r = svc.run_script("j", str(s), inputs=[str(tmp_path / "geo.step")], outputs=["out.json", "gone.csv"])
+    assert t.puts[svc.vm_root + "\\j\\geo.step"] == "STEP"
+    assert r["fetched"] == [str(svc.project / "j" / "out.json")] and r["missing"] == ["gone.csv"]
+    assert svc.run_script("j", str(s), outputs=["../x"])["status"] == "error"
+    assert svc.run_script("j", str(s), inputs=["nope.step"])["status"] == "error"
 
 
 def test_run_script_rejects_bad_job(make, tmp_path):
@@ -183,6 +219,19 @@ def test_model_summary(make):
     assert svc.model_summary("jb", model="a;b")["status"] == "error"
 
 
+def test_model_summary_only_and_node_limit(make):
+    svc, t = make(node_limit=100)
+    t.files[svc.vm_root + "\\jb\\_model_summary.json"] = json.dumps(
+        {"source": "jb.cae", "model": "M", "omitted": {}, "parts": {"P": {}}, "mesh": {"nodes": 150}})
+    r = svc.model_summary("jb", only=["mesh"])
+    assert set(r) == {"source", "model", "omitted", "status", "mesh"}
+    assert r["mesh"]["warning"] == "150 nodes > node_limit 100"
+    assert svc.model_summary("jb", only=["bogus"])["status"] == "error"
+    svc0, t0 = make()
+    t0.files[svc0.vm_root + "\\jb\\_model_summary.json"] = json.dumps({"mesh": {"nodes": 10**6}})
+    assert "warning" not in svc0.model_summary("jb")["mesh"]
+
+
 def test_model_summary_kernel_function_has_no_noGUI_calls():
     src = sc._kernel("summary.py").split('"""', 2)[2]  # code after the module docstring
     for bad in ("openMdb", "session", "noGUI", "from abaqus import", "sys.__stdout__"):
@@ -201,6 +250,21 @@ def test_model_views(make):
     assert svc.model_views("jb", highlight="a b")["status"] == "error"
     svc, _ = make(lambda c: _json({"ok": False}))
     assert svc.model_views("jb")["status"] == "error"
+
+
+def test_model_views_list_views_size(make):
+    svc, t = make(lambda c: _json({"ok": True, "shown": "assembly", "files": []}))
+    r = svc.model_views("jb", highlight=["A", "B"])
+    assert r["status"] == "ok" and set(r["paths"]) == {"A:iso", "B:iso"}
+    assert r["paths"]["B:iso"].endswith("jb_views_B_iso.png")
+    s = t.puts[svc.vm_root + "\\jb\\_model_views.py"]
+    assert '\\"highlight\\": [\\"A\\", \\"B\\"]' in s and '\\"size\\": [900, 600]' in s
+    assert sum("noGUI=_model_views.py" in c for c in t.commands) == 1
+    r = svc.model_views("jb", views=["left"], size=[400, 300])
+    assert list(r["paths"]) == ["left"] and '\\"size\\": [400, 300]' in t.puts[svc.vm_root + "\\jb\\_model_views.py"]
+    assert svc.model_views("jb", views=["diag"])["status"] == "error"
+    assert svc.model_views("jb", size=[10, 10])["status"] == "error"
+    assert svc.model_views("jb", highlight=["ok", "a b"])["status"] == "error"
 
 
 def test_model_views_kernel_function_rules():

@@ -128,6 +128,20 @@ def _place(d, i, p):
 _DIM = {"THREE_D": "3D", "TWO_D_PLANAR": "2D", "AXISYMMETRIC": "AXI"}
 
 
+def _techniques(p):
+    """Cells (faces of a 2D part) by assigned mesh control, e.g. {"HEX STRUCTURED": 77}."""
+    from abaqusConstants import ELEM_SHAPE, TECHNIQUE
+    out = {}
+    try:
+        for e in (p.cells if len(p.cells) else p.faces):
+            k = "%s %s" % (p.getMeshControl(region=e, attribute=ELEM_SHAPE),
+                           p.getMeshControl(region=e, attribute=TECHNIQUE))
+            out[k] = out.get(k, 0) + 1
+    except Exception:
+        return {}  # analytic rigid parts, wires
+    return out
+
+
 def _types(elems):
     t = {}
     for e in elems:
@@ -163,7 +177,7 @@ def _build(mdb, model, source, scale):
     a = m.rootAssembly
     out = {"source": source, "model": mname, "models": list(mdb.models.keys()), "omitted": om}
 
-    parts, nodes_of, types_of = {}, {}, {}
+    parts, nodes_of, types_of, tech = {}, {}, {}, {}
     unmeshed = []
     for pn, p in _cut(m.parts.items(), "parts", "parts", scale, om):
         d = {"dim": _DIM.get(str(p.space), str(p.space)), "type": str(p.type),
@@ -183,6 +197,9 @@ def _build(mdb, model, source, scale):
         parts[pn] = d
         nodes_of[pn] = len(p.nodes)
         types_of[pn] = _types(p.elements)
+        tq = _techniques(p)
+        if tq:
+            tech[pn] = tq
         rigid = "ANALYTIC" in str(p.type)
         if not rigid and (d["cells"] or d["faces"] or d["edges"]) and not len(p.elements):
             unmeshed.append(pn)
@@ -329,7 +346,8 @@ def _build(mdb, model, source, scale):
 
     out["mesh"] = {"nodes": tot_nodes, "elems": tot_el,
                    "types": dict(_cut(types.items(), "types", "mesh.types", scale, om)),
-                   "unmeshed": unmeshed}
+                   "unmeshed": unmeshed,
+                   "techniques": dict(_cut(tech.items(), "types", "mesh.techniques", scale, om))}
     return out
 
 

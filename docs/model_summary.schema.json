@@ -147,7 +147,9 @@
         "nodes": {"type": "integer", "description": "Over all instances (a dependent instance counts its part's mesh), else over parts when there are no instances."},
         "elems": {"type": "integer"},
         "types": {"type": "object", "description": "Element type code -> count, same basis as nodes.", "additionalProperties": {"type": "integer"}},
-        "unmeshed": {"type": "array", "items": {"type": "string"}, "description": "Parts with geometry, no analytic rigid surface and no elements."}
+        "unmeshed": {"type": "array", "items": {"type": "string"}, "description": "Parts with geometry, no analytic rigid surface and no elements."},
+        "techniques": {"type": "object", "description": "Part -> assigned mesh control -> cell count (faces for a 2D part), e.g. {\"HEX STRUCTURED\": 77, \"HEX SWEEP\": 42}.", "additionalProperties": {"type": "object", "additionalProperties": {"type": "integer"}}},
+        "warning": {"type": "string", "description": "Set by the server when nodes exceed config node_limit."}
       }
     }
   }

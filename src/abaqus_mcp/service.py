@@ -42,6 +42,38 @@ def _error(msg: str, hint: str = "") -> dict:
 
 
 _LICENSE_NOISE = re.compile(r"^(Successfully checked out|Abaqus License Manager|\"\w+\" from DSLS|<\d+ out of)")
+_BANNER = re.compile(r'^Executing "onCaeGraphicsStartup\(\)"')
+VIEWS = ("iso", "front", "back", "top", "bottom", "left", "right")
+SUMMARY_KEYS = ("models", "parts", "instances", "sets", "surfaces", "materials", "sections", "assignments",
+                "steps", "loads", "bcs", "interactions", "contact_props", "mesh")
+
+# runs the user's script in a fresh namespace after the CAE modules are registered: no star import,
+# so builtins such as sum stay builtins; the job dir (with abqmcp.py) is on sys.path
+_WRAPPER = """import builtins, os, sys
+import caeModules  # noqa: F401
+sys.path.insert(0, os.getcwd())
+with open({name!r}, encoding="utf-8") as _fh:
+    _code = compile(_fh.read(), {name!r}, "exec")
+exec(_code, {{"__name__": "__main__", "__file__": {name!r}, "__builtins__": builtins}})
+"""
+HELPER = Path(__file__).parent / "kernel" / "abqmcp.py"
+
+
+def compact(text: str, cap: int) -> str:
+    """Runs of identical lines (after rstrip) as one line plus ` [xN]`, then the last `cap` characters."""
+    out, prev, n = [], None, 0
+    for line in text.splitlines() + [None]:
+        line = line.rstrip() if line is not None else None
+        if line == prev:
+            n += 1
+            continue
+        if prev is not None:
+            out.append(prev + (f" [x{n}]" if n > 1 else ""))
+        prev, n = line, 1
+    text = "\n".join(out)
+    if cap and len(text) > cap:
+        return f"[... {len(text) - cap} chars cut]\n" + text[-cap:]
+    return text
 _EXC = re.compile(r"^\w*(Error|Exception|Exit)\b.*")
 
 
@@ -228,7 +260,7 @@ class Service:
         abaqus modules are in scope), so edits appear in the open model tree. Needs the live-bridge plug-in
         and a CAE window; otherwise returns "no live CAE session" within 5 s. The script waits until no
         GUI dialog or procedure is active. Output (print) and a variable named `result` (JSON-able)
-        come back; an exception comes back as `traceback`. Every script is kept in
+        come back; an exception comes back as `traceback`. `import abqmcp` works as in run_script. Every script is kept in
         C:\\abaqus-work\\live\\log on the VM."""
         t0 = time.monotonic()
         if self._live_age() is None:
@@ -244,6 +276,7 @@ class Service:
         part, py = f"{live}\\inbox\\{sid}.part", f"{live}\\inbox\\{sid}.py"
         out = f"{live}\\outbox\\{sid}.json"
         try:
+            self._live_helper()
             self.t.put(local, part)
             # one SSH call: publish the script, poll the outbox every 0.25 s on the VM, print the result
             cmd = (f"Move-Item -LiteralPath {psq(part)} -Destination {psq(py)}; $o={psq(out)}; "
@@ -274,39 +307,72 @@ class Service:
             out_d["error"] = _first_exc(d.get("traceback", "")) or "script failed"
         return out_d
 
+    def _live_helper(self) -> None:
+        """abqmcp.py into the live dir (on the kernel path through mcp_live_kernel), once per server."""
+        if not getattr(self, "_helper_put", False):
+            self.t.put(HELPER, f"{self._live}\\abqmcp.py")
+            self._helper_put = True
+
     def _live_session(self) -> bool:
         return self._live_age() is not None
 
     # -- tools -------------------------------------------------------------
-    def run_script(self, job: str, script_path: str, timeout: int | None = None) -> dict:
-        """Executes arbitrary Python in Abaqus/CAE on the VM: uploads a .py to the job dir and runs
-        `abaqus cae noGUI=<script>`.
-        print() and sys.stderr output of the script is not on stdout: it is returned as `print_output`,
-        read from the `#: ` lines this run wrote to abaqus.rpy. Write results to a file or sys.__stdout__
-        to get them in `stdout`. A run is an error on `Abaqus Error:` in stdout/stderr or a non-zero exit."""
+    def run_script(self, job: str, script_path: str, inputs: list[str] | None = None,
+                   outputs: list[str] | None = None, timeout: int | None = None) -> dict:
+        """Runs a Python script in Abaqus/CAE (`abaqus cae noGUI`) in the job dir. The CAE modules are
+        loaded first (mdb.openStep, part and mesh methods exist; no star import, so import what you
+        use: `from abaqus import mdb`, `from abaqusConstants import *`). `import abqmcp` gives the
+        partition and mesh helpers (import_solid, cut, mesh_plan, seed_bias, mesh_report).
+        inputs: host files (bare names from the project dir, or paths) uploaded to the job dir first.
+        outputs: file names copied from the job dir to <project>/<job>/ afterwards, listed in
+        `fetched` and `missing`. print() comes back as `print_output`, sys.__stdout__ as `stdout`,
+        each with repeated lines collapsed (`line [xN]`) and only the last print_cap (4000) characters.
+        On failure also `stderr` and `traceback` (line numbers of your script). A run is an error on
+        `Abaqus Error:` or a non-zero exit."""
         try:
             self._need_project()
+            for n in outputs or []:
+                validate_filename(n)
             if (g := self._guard()):
                 return g
             src = self._in_project(script_path)
+            ins = [self._in_project(p) for p in inputs or []]
             d = self._prep(job)
             name = self._upload(job, src)
+            for p in ins:
+                self._upload(job, p)
+            self.t.put(HELPER, f"{d}\\abqmcp.py")
+            self._upload_text(job, _WRAPPER.format(name=name), "_mcp_run.py")
             # fresh abaqus.rpy: only this run's lines are read back
             self.t.run(f"Remove-Item -LiteralPath {psq(d + chr(92) + 'abaqus.rpy')} -ErrorAction SilentlyContinue; exit 0",
                        self.cfg.ssh_timeout)
-            r = self._abq(d, f"cae noGUI={name}", timeout or self.cfg.script_timeout)
+            r = self._abq(d, "cae noGUI=_mcp_run.py", timeout or self.cfg.script_timeout)
             rpy = self.t.run(f"Get-Content -LiteralPath {psq(d + chr(92) + 'abaqus.rpy')} "
                              "-ErrorAction SilentlyContinue; exit 0", self.cfg.ssh_timeout).stdout
+            fetched, missing = [], []
+            for n in outputs or []:
+                local = self._host(job) / n
+                local.unlink(missing_ok=True)
+                try:
+                    self.t.get(f"{d}\\{n}", local)
+                    fetched.append(str(local))
+                except (TransportError, OSError):
+                    missing.append(n)
         except (SecurityError, TransportError) as e:
             return _error(str(e))
-        printed = "\n".join(l[3:] for l in rpy.splitlines() if l.startswith("#: "))
+        cap = self.cfg.print_cap
+        printed = "\n".join(l[3:] for l in rpy.splitlines() if l.startswith("#: ") and not _BANNER.match(l[3:]))
         failed = _failed(r)
-        tb = _traceback(r.stderr, rpy) if failed else ""
         out = {"status": "error" if failed else "ok", "exit_code": r.returncode, "timed_out": r.timed_out,
-               "print_output": printed, "stdout": r.stdout, "stderr": r.stderr, "traceback": tb,
-               "elapsed_s": round(r.elapsed, 1)}
+               "print_output": compact(printed, cap), "stdout": compact(r.stdout, cap)}
+        if outputs:
+            out.update(fetched=fetched, missing=missing)
         if failed:
-            out["error"] = "timeout" if r.timed_out else (_first_exc(tb) or "script failed")
+            tb = _traceback(r.stderr, rpy)
+            err = "\n".join(l for l in r.stderr.splitlines() if not _LICENSE_NOISE.match(l.strip()))
+            out.update(stderr=compact(err, cap), traceback=tb,
+                       error="timeout" if r.timed_out else (_first_exc(tb) or "script failed"))
+        out["elapsed_s"] = round(r.elapsed, 1)
         return out
 
     def submit_job(self, job: str, inp_file: str | None = None, cae_file: str | None = None,
@@ -456,21 +522,26 @@ class Service:
         return res
 
     def model_summary(self, job: str, cae_file: str | None = None, model: str | None = None,
-                      live: bool = True) -> dict:
+                      live: bool = True, only: list[str] | None = None) -> dict:
         """JSON summary of a .cae (schema: docs/model_summary.schema.json): parts, instances, sets,
         surfaces, materials, sections, steps, loads, BCs, interactions, mesh; under 20 kB, long lists
         cut with `omitted` counts. cae_file is a host path (with a directory part, or ~) that is
         uploaded, or a bare name already in the VM job dir. Default <job>.cae; model default is the
         first model. Without cae_file, and when a live CAE session answers (live=True), the open
-        session is summarised (unsaved edits included, source "live")."""
+        session is summarised (unsaved edits included, source "live"). only: top-level keys to return
+        (e.g. ["mesh"]; also source, model, omitted, status). mesh.techniques counts cells per part by
+        assigned shape and technique; mesh.warning appears above config node_limit."""
         try:
             if model:
                 validate_name(model)
+            bad = [k for k in only or [] if k not in SUMMARY_KEYS]
+            if bad:
+                return _error(f"unknown summary keys {bad}", "one of " + ", ".join(SUMMARY_KEYS))
             self._need_project()
             if live and not cae_file and self._live_session():
                 res = self._live_json(scripts.live_summary(model))
                 if res.get("status") != "error" or res.get("error") != NO_LIVE:
-                    return res
+                    return self._trim_summary(res, only)
             if (g := self._guard()):
                 return g
             self._prep(job)
@@ -480,21 +551,53 @@ class Service:
         except (SecurityError, TransportError) as e:
             return _error(str(e))
         res.setdefault("status", "ok")
+        return self._trim_summary(res, only)
+
+    def _trim_summary(self, res: dict, only: list[str] | None) -> dict:
+        mesh = res.get("mesh")
+        if isinstance(mesh, dict) and self.cfg.node_limit and mesh.get("nodes", 0) > self.cfg.node_limit:
+            mesh["warning"] = f"{mesh['nodes']} nodes > node_limit {self.cfg.node_limit}"
+        if only and res.get("status") != "error":
+            res = {k: v for k, v in res.items() if k in (*only, "source", "model", "omitted", "status")}
         return res
 
+    def _view_args(self, highlight, views, size):
+        hl = highlight if isinstance(highlight, list) else [highlight] if highlight else []
+        for n in hl:
+            validate_name(n)
+        views = list(views) if views else (["iso"] if isinstance(highlight, list) else ["iso", "front", "top"])
+        if not views or any(v not in VIEWS for v in views):
+            raise SecurityError(f"views must be from {VIEWS}")
+        w, h = (int(x) for x in size)
+        if not (100 <= w <= 4000 and 100 <= h <= 4000):
+            raise SecurityError("size must be [width, height], 100 to 4000 px")
+        return views, (w, h)
+
+    @staticmethod
+    def _view_files(job, highlight, views):
+        """(key in paths, file stem) per PNG; a list of highlights is keyed "<name>:<view>"."""
+        if isinstance(highlight, list):
+            return [(f"{h}:{v}", f"{job}_views_{h}_{v}") for h in highlight for v in views]
+        base = f"{job}_views" + (f"_{highlight}" if highlight else "")
+        return [(v, f"{base}_{v}") for v in views]
+
     def model_views(self, job: str, cae_file: str | None = None, model: str | None = None,
-                    highlight: str | None = None, live: bool = True) -> dict:
-        """Iso, front and top PNGs of the assembly (the first part when there are no instances) of a
-        .cae, optionally with one set or surface highlighted; copied to <project>/<job>/. cae_file
-        and model as in model_summary. Without cae_file, and with a live CAE session, the open model is
-        drawn in a viewport of that session (its displayed object is restored afterwards)."""
+                    highlight: str | list[str] | None = None, views: list[str] | None = None,
+                    size: list[int] = (900, 600), live: bool = True) -> dict:
+        """PNGs of the assembly (the first part when there are no instances) of a .cae, copied to
+        <project>/<job>/. highlight: one set or surface name, drawn red, or a list of them (one PNG per
+        name and view, keyed "<name>:<view>", all from one CAE run). views: from iso, front, back, top,
+        bottom, left, right; default iso, front, top, or iso only for a list. size: [width, height] px.
+        cae_file and model as in model_summary. Without cae_file, and with a live CAE session, the open
+        model is drawn in a viewport of that session (its displayed object is restored afterwards)."""
         try:
             self._need_project()
-            for n in (model, highlight):
-                if n:
-                    validate_name(n)
+            if model:
+                validate_name(model)
+            views, size = self._view_args(highlight, views, size)
+            files = self._view_files(job, highlight, views)
             if live and not cae_file and self._live_session():
-                res = self._live_views(job, model, highlight)
+                res = self._live_views(job, model, highlight, views, size, files)
                 if res.get("status") != "error" or res.get("error") != NO_LIVE:
                     return res
             if (g := self._guard()):
@@ -502,18 +605,18 @@ class Service:
             d = self._prep(job)
             cae = self._cae(job, cae_file) if cae_file else f"{job}.cae"
             # no dot in the name: printToFile writes nothing otherwise
-            base = f"{job}_views" + (f"_{highlight}" if highlight else "")
-            self._upload_text(job, scripts.model_views(cae, base, model, highlight), "_model_views.py")
+            base = f"{job}_views" + (f"_{highlight}" if isinstance(highlight, str) else "")
+            self._upload_text(job, scripts.model_views(cae, base, model, highlight, views, size), "_model_views.py")
             r = self._abq(d, "cae noGUI=_model_views.py", self.cfg.script_timeout)
             data = _json_from(r.stdout)
             if not data or not data.get("ok"):
                 return _error("view PNGs not written", _traceback(r.stderr) or truncate(r.stderr, 2000))
             paths = {}
-            for v in ("iso", "front", "top"):
-                local = self._host(job) / f"{base}_{v}.png"
-                self.t.get(f"{d}\\{base}_{v}.png", local)
-                paths[v] = str(local)
-        except (SecurityError, TransportError) as e:
+            for key, stem in files:
+                local = self._host(job) / f"{stem}.png"
+                self.t.get(f"{d}\\{stem}.png", local)
+                paths[key] = str(local)
+        except (SecurityError, TransportError, ValueError, TypeError) as e:
             return _error(str(e))
         return {"status": "ok", "paths": paths, "shown": data.get("shown"), "highlight": highlight}
 
@@ -551,17 +654,17 @@ class Service:
         res.setdefault("status", "ok")
         return res
 
-    def _live_views(self, job: str, model, highlight) -> dict:
-        base = f"{self._live}\\views\\{job}_views" + (f"_{highlight}" if highlight else "")
-        res = self._live_json(scripts.live_views(base, model, highlight))
+    def _live_views(self, job: str, model, highlight, views, size, files) -> dict:
+        base = f"{self._live}\\views\\{job}_views" + (f"_{highlight}" if isinstance(highlight, str) else "")
+        res = self._live_json(scripts.live_views(base, model, highlight, views, size))
         if res.get("status") == "error" or not res.get("files"):
             return res if res.get("status") == "error" else _error("view PNGs not written")
         paths = {}
         try:
-            for v in ("iso", "front", "top"):
-                local = self._host(job) / f"{job}_views{'_' + highlight if highlight else ''}_{v}.png"
-                self.t.get(f"{base}_{v}.png", local)
-                paths[v] = str(local)
+            for key, stem in files:
+                local = self._host(job) / f"{stem}.png"
+                self.t.get(f"{self._live}\\views\\{stem}.png", local)
+                paths[key] = str(local)
         except TransportError as e:
             return _error(str(e))
         return {"status": "ok", "paths": paths, "shown": res.get("shown"), "highlight": highlight, "source": "live"}

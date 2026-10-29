@@ -23,6 +23,7 @@ class FakeTransport:
         self.puts: dict[str, str] = {}
         self.gets: list[str] = []
         self.files: dict[str, str] = {}  # remote path -> text served by get
+        self.missing: set[str] = set()  # remote paths whose get fails
 
     def run(self, command, timeout=60):
         self.commands.append(command)
@@ -34,6 +35,9 @@ class FakeTransport:
 
     def get(self, remote, local, timeout=120):
         self.gets.append(remote)
+        if remote in self.missing:
+            from abaqus_mcp.transport import TransportError
+            raise TransportError(f"no such file: {remote}")
         Path(local).write_bytes(self.files[remote].encode() if remote in self.files else b"\x89PNG")
 
 

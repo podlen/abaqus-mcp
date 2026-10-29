@@ -32,8 +32,8 @@ Cite only the tag of the rule you apply. A number or claim that no rule here sta
    With a live CAE session and no `cae_file` it reads the open model, unsaved edits included.
    For a saved file pass `cae_file`.
    Check `omitted` before calling anything absent: long lists are cut.
-2. Look at the model with `model_views(job, highlight=<name>)`.
-   Highlight each contact surface and each BC set whose position matters, one call each.
+2. Look at the model with `model_views(job, highlight=[<name>, ...])`.
+   Put every contact surface and every BC set whose position matters in one list: one CAE run, one iso PNG per name.
    Read the PNGs yourself.
 3. Infer the objective (table below). State it to the user in one or two sentences.
 4. Ask what the model cannot show (list below). Ask in one message.
@@ -51,6 +51,41 @@ Cite only the tag of the rule you apply. A number or claim that no rule here sta
    - `odb_history(job, outputs=[...])`: RF and U at the tool reference point; ALLIE, ALLAE, ALLSD, ALLPD.
    - `odb_query(job, ...)`: COPEN, CPRESS, PEEQ and S fields.
    - Then the checks in `references/solution-and-checks.md`.
+
+## Building a partitioned hex mesh
+
+Make all partitions in Abaqus. A multi-cell STEP from a CAD tool gave an invalid part with duplicate vertices (docs/field-log.md, entries 5 and 7).
+Scripts run through `run_script(job, script, inputs=[...], outputs=[...])`.
+Each script imports what it uses (`from abaqus import mdb`, `from abaqusConstants import *`).
+The helpers come from `import abqmcp as h`:
+
+1. `p = h.import_solid("part.step", "Name")` gives one valid part. A file with several bodies is merged into one part with shared faces. An invalid result raises with the entity counts.
+2. `h.cut(p, x=[...], y=[...], z=[...], planes=[((pt), (normal)), ...], cells=[pt, ...])` cuts cells by planes.
+   Cut through every hole axis and every step in the outline, so each cell becomes a brick or a sweepable prism.
+   Planes that cut nothing are listed in `skipped`.
+3. `h.mesh_plan(p)` tries hex STRUCTURED, then hex SWEEP, per cell, and falls back to tet FREE.
+   It returns the technique counts and a point on each non-hex cell.
+   Add cuts through the cells in `non_hex` and run it again; `tet=False` leaves those cells unassigned.
+4. Seeds: `p.seedPart(size=h0)`, then `h.seed_bias(p, edges=[pt, ...], fine=pt, min_size, max_size)` for grading toward a stress peak.
+   `seed_bias` works out the sense of each edge itself.
+5. `p.generateMesh()`, then `h.mesh_report(p)`: nodes, element types, techniques, unmeshed cells, quality checks.
+   It warns above 250 000 nodes, the Teaching Edition limit.
+6. Save the .cae in the same script. Check the mesh with `model_summary(job, cae_file=..., only=["mesh"])`, whose `mesh.techniques` counts cells per technique.
+
+One script builds the whole model: geometry, cuts, mesh, sections, steps, loads and BCs.
+After a failed run, fix that script and rerun it. A new script for each step costs a CAE start each time.
+
+## Token use
+
+Every tool result stays in the context for the rest of the session.
+
+- `print()` only what you decide on: counts, a validity flag, a short dict.
+  `run_script` returns the last 4000 characters of `print_output` and `stdout`, with repeated lines collapsed.
+- Write bulky results (node tables, per-cell lists) to a file, fetch it with `outputs=[...]`, and read only the part you need.
+- `model_summary(..., only=["mesh"])` (or `["steps", "loads", "bcs"]`) after the first full read.
+- `model_views` takes a list of highlights and `views=["iso"]`. A PNG costs about width x height / 750 tokens: 900 x 600 is about 720.
+  Ask for a view only when a picture decides something.
+- Do not read the server source or call private methods; the tool docstrings say what each tool returns.
 
 ## Inferring the objective from the summary
 

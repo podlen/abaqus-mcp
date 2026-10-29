@@ -156,6 +156,7 @@ To run the check again without setup: in PowerShell, in the repository folder, r
 | `work_vm` | `C:\abaqus-work` | folder where Abaqus runs; each project gets a sub-folder. ASCII letters, no spaces |
 | `state_dir` | `%LOCALAPPDATA%\abaqus-mcp` | scratch files of the server |
 | `transport` | `local` | `local` runs Abaqus on this PC; `ssh` is the Linux VM mode |
+| `print_cap`, `node_limit` | 4000, 0 | as in the Linux table below |
 
 In the repository folder, `uv run python -m abaqus_mcp.config --print` shows the values in use.
 
@@ -211,6 +212,8 @@ The VM runs a 90-day Windows 11 Enterprise evaluation. `vm/fl-setup.ps1` runs `s
 | `abaqus_cmd` | `C:\Program Files\SIMULIA\Commands\abaqus.bat` | full path of the Abaqus launcher in the VM, used by every tool |
 | `vpn_cmd` | `bin/abaqus-vpn` | run with `up` when the license port is closed |
 | `transport` | `ssh` | `ssh` runs every command in the VM; `local` is the native Windows mode |
+| `print_cap` | 4000 | characters of `print_output`, `stdout` and `stderr` that `run_script` returns |
+| `node_limit` | 0 (off) | `model_summary` adds `mesh.warning` above this node count; the Teaching Edition limit is 250000 |
 
 ### Use
 
@@ -229,13 +232,13 @@ A `job` is a name (a letter, then `[A-Za-z0-9_-]`); its files live in `<project>
 |---|---|
 | `set_project(path)` | sets the analysis directory of the session (under `$HOME`, symlinks followed, created if new); a second call switches projects. Job tools return `no project: call set_project` before the first call |
 | `license_check` | TCP probe of the license port; on failure `abaqus-vpn up` once and probe again; else `license server unreachable` (under 30 s). With an empty `vpn_cmd` (the Windows default) it starts no VPN and asks you to connect it; with no known licence host it returns `not checked` |
-| `run_script(job, script_path)` | uploads a .py, runs `abaqus cae noGUI=`; exit code, bounded stdout/stderr, traceback |
+| `run_script(job, script_path, inputs, outputs)` | uploads the .py, the `inputs` files and the `abqmcp` helper module, runs the script under `abaqus cae noGUI=` in a fresh namespace with the CAE modules loaded, copies `outputs` to `<project>/<job>/` (`fetched`, `missing`); `print_output` and `stdout` with repeated lines collapsed and cut to the last `print_cap` characters; on failure also stderr and the traceback |
 | `submit_job(job, inp_file or cae_file, model, cpus, background)` | `abaqus job=... interactive`, or detached (`Win32_Process`) with a poll through `job_status`. `cae_file` is a host path (contains `/` or `\`, or starts with `~`), uploaded; a bare name is a file already in the VM job dir, never looked up in the server cwd |
 | `job_status(job)` | `.sta`, `.msg`, `.lck`: status; per step increments done, attempts, cut-backs, equilibrium iterations, smallest and last time increment; `.msg` warnings grouped by type; last 5 errors |
 | `odb_query(job, step, frame, variable, set_name, component)` | field output as JSON via `abaqus python`; the script writes the JSON to `_odb_query.json` in the job dir and the server fetches it; lists frames with frequency |
 | `odb_history(job, step, region, outputs)` | history output of `<job>.odb`; without `outputs` the regions and output names per step, with `outputs` (e.g. `["RF2", "ALLIE"]`) `[time, value]` series of at most 200 points |
-| `model_summary(job, cae_file, model, live)` | JSON summary of a .cae (parts, instances, sets, surfaces, materials, sections, steps, loads, BCs, interactions, mesh), fields in `docs/model_summary.schema.json`, under 20 kB with `omitted` counts; `cae_file` as in `submit_job`, default `<job>.cae`, `model` default the first; without `cae_file` and with a live CAE session it reads the open model, unsaved edits included |
-| `model_views(job, cae_file, model, highlight, live)` | iso, front and top PNGs of the assembly (the first part if there are no instances), optionally one set or surface in red; copied to `<project>/<job>/<job>_views[_<highlight>]_{iso,front,top}.png` |
+| `model_summary(job, cae_file, model, live, only)` | JSON summary of a .cae (parts, instances, sets, surfaces, materials, sections, steps, loads, BCs, interactions, mesh), fields in `docs/model_summary.schema.json`, under 20 kB with `omitted` counts; `cae_file` as in `submit_job`, default `<job>.cae`, `model` default the first; without `cae_file` and with a live CAE session it reads the open model, unsaved edits included; `only` keeps the named top-level keys; `mesh.techniques` counts cells per assigned mesh control, `mesh.warning` appears above `node_limit` |
+| `model_views(job, cae_file, model, highlight, views, size, live)` | PNGs (default 900 x 600; iso, front and top) of the assembly (the first part if there are no instances), optionally one set or surface in red, copied to `<project>/<job>/<job>_views[_<highlight>]_<view>.png`; a list of highlights gives one iso PNG per name from one CAE run, keyed `<name>:<view>` |
 | `viewport_png(job, step_index, frame, variable)` | noGUI `printToFile`; PNG copied to `<project>/<job>/<job>_view.png` |
 | `cae_live(script, timeout)` | runs Python in the open CAE GUI session (see Live session); returns output, a `result` variable, or the traceback; `no live CAE session` within 5 s without one |
 

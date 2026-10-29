@@ -54,7 +54,8 @@ EXPECTED = {
                       "discretization": "SURFACE_TO_SURFACE", "sliding": "FINITE",
                       "main": "PLATE_S", "secondary": "TOP_AXI"}],
     "contact_props": {"fric": {"friction": [0.1], "normal": "HARD"}},
-    "mesh": {"nodes": 25, "elems": 16, "types": {"CAX4R": 16}, "unmeshed": ["Billet"]},
+    "mesh": {"nodes": 25, "elems": 16, "types": {"CAX4R": 16}, "unmeshed": ["Billet"],
+             "techniques": {"Axi": {"QUAD_DOMINATED FREE": 1}, "Billet": {"HEX SWEEP": 1}}},
 }
 
 
@@ -85,7 +86,8 @@ def test_model_summary_second_model_independent_instance(built):
     assert r["model"] == "Solid" and r["instances"] == {
         "Block-1": {"part": "Block", "dependent": False, "translation": [5.0, 0.0, 3.0], "bbox": [5.0, 0.0, 3.0, 7.0, 2.0, 5.0]}}
     assert r["parts"]["Block"]["dim"] == "3D" and r["parts"]["Block"]["cells"] == 1
-    assert r["mesh"] == {"nodes": 27, "elems": 8, "types": {"C3D8R": 8}, "unmeshed": []}
+    assert r["mesh"] == {"nodes": 27, "elems": 8, "types": {"C3D8R": 8}, "unmeshed": [],
+                         "techniques": {"Block": {"HEX STRUCTURED": 1}}}
 
 
 def _pngs(r):

@@ -32,11 +32,15 @@ from abaqusConstants import *
 import abqmcp as h
 two = h.import_solid("two_blocks.step", "Two")
 p = h.import_solid("block_hole.step", "Blk")
-out = {"two": h.check_part(two), "cut": h.cut(p, x=(15.0, 25.0, 100.0), y=(10.0,)), "plan": h.mesh_plan(p)}
+out = {"two": h.check_part(two), "cut": h.cut(p, x=(15.0, 25.0, 100.0), y=(10.0,))}
+out["box"] = h.cut(p, z=(5.0,), box=(-1, -1, -1, 15.1, 21, 11))  # only the two cells at x < 15
+out["plan"] = h.mesh_plan(p)
 del mdb.models["Model-1"].parts["Two"]
 p.seedPart(size=2.0, deviationFactor=0.1, minSizeFactor=0.1)
 edge = (0.0, 0.0, 2.5)
 out["bias"] = h.seed_bias(p, [edge], (0.0, 0.0, 10.0), 0.3, 2.0)
+pre = h.mesh_report(p)
+out["pre"] = [pre["unmeshed_cells"], len(pre["unmeshed_at"])]
 p.generateMesh()
 zs = sorted(n.coordinates[2] for n in p.edges.findAt(edge).getNodes())
 out["spacing"] = [zs[1] - zs[0], zs[-1] - zs[-2]]
@@ -70,15 +74,17 @@ def test_helpers_views_summary(tmp_path):
     rep = json.loads(Path(r["fetched"][0]).read_text())
     assert rep["two"]["valid"] and rep["two"]["cells"] == 2
     assert rep["cut"]["cells"] == 6 and len(rep["cut"]["skipped"]) == 1  # x = 100 is outside
+    assert rep["box"]["cells"] == 8 and rep["box"]["skipped"] == []
     assert "TET" not in rep["plan"]["counts"] and rep["plan"]["non_hex"] == []
     first, last = rep["spacing"]
     assert last < first and first / last == pytest.approx(2.0 / 0.3, rel=0.2)  # fine end at z = 10
-    assert rep["report"]["unmeshed_cells"] == 0
+    assert rep["pre"] == [8, 8]
+    assert rep["report"]["unmeshed_cells"] == 0 and rep["report"]["unmeshed_at"] == []
 
     s = call("model_summary", job=JOB, cae_file="partition.cae", only=["mesh"])
     assert set(s) == {"source", "model", "omitted", "status", "mesh"}, s
     assert s["mesh"]["nodes"] == rep["report"]["nodes"]
-    assert s["mesh"]["techniques"] == {"Blk": {"HEX STRUCTURED": 6}}
+    assert s["mesh"]["techniques"] == {"Blk": {"HEX STRUCTURED": 8}}
 
     cfg = load()
     cfg.node_limit = 100

@@ -41,3 +41,12 @@ One entry per problem. "Cause" says whether the server, the script or the model 
     `end1Edges` / `end2Edges` by its first vertex; a check of node spacings after meshing confirmed the
     direction. Also `p.edges.findAt(((pt,),))` returns a sequence without `getNodes`; `findAt(pt)` returns
     the edge. Cause: script. Idea: a `seed_bias(part, edges, fine_end_point, min, max)` helper.
+
+## 2026-10-29: bracket natively in Abaqus (spec 005 C8)
+
+12. **Native bracket partition left 205 of 636 cells unmeshed** (run 2).
+    Tab clamp-hole planes cut through the whole part and left 0.35 mm slivers in the bore wall; a full
+    ring r + 1.35 around the bore touched the ligament box planes at a tangent (zero-angle corners).
+    A whole-part `generateMesh` gave 0 nodes and no message. Cause: skill (no partition strategy) and
+    tool (`cut` selected cells only by points). Fix: `cut(box=...)`, `mesh_report` `unmeshed_at`, skill
+    rules on zone-local cuts, tangent points and slivers.

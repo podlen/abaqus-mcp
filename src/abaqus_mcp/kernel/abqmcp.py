@@ -57,7 +57,13 @@ def import_solid(path, name="Part-1", model=None):
     return p
 
 
-def _cells(p, cells):
+def _cells(p, cells, box=None):
+    if box is not None:
+        b = [float(c) for c in box]
+        got = p.cells.getByBoundingBox(xMin=b[0], yMin=b[1], zMin=b[2], xMax=b[3], yMax=b[4], zMax=b[5])
+        if not len(got):
+            raise ValueError("no cell lies wholly inside box %r" % (b,))
+        return got
     return p.cells if cells is None else p.cells.findAt(*[(tuple(c),) for c in cells])
 
 
@@ -73,16 +79,18 @@ def _basis(n):
     return u, v
 
 
-def cut(p, x=(), y=(), z=(), planes=(), cells=None):
-    """Partition cells by planes x = c, y = c, z = c and by (point, normal) planes. cells: points on
-    the cells to cut (default all cells; re-read after every cut). A plane that cuts nothing is
-    listed in `skipped`, not raised. Returns {"cells": n, "cuts": done, "skipped": [...]}."""
+def cut(p, x=(), y=(), z=(), planes=(), cells=None, box=None):
+    """Partition cells by planes x = c, y = c, z = c and by (point, normal) planes. Only the cells
+    lying wholly inside box = (xmin, ymin, zmin, xmax, ymax, zmax), or the cells through the points
+    `cells`, are cut (default all cells; the selection is re-read after every cut), so a plane for one
+    zone leaves the rest of the part alone. A plane that cuts nothing is listed in `skipped`.
+    Returns {"cells": n, "cuts": done, "skipped": [...]}."""
     todo = [("x", YZPLANE, c) for c in x] + [("y", XZPLANE, c) for c in y] + [("z", XYPLANE, c) for c in z]
     done, skipped = 0, []
     for axis, plane, c in todo:
         d = p.DatumPlaneByPrincipalPlane(principalPlane=plane, offset=float(c))
         try:
-            p.PartitionCellByDatumPlane(datumPlane=p.datums[d.id], cells=_cells(p, cells))
+            p.PartitionCellByDatumPlane(datumPlane=p.datums[d.id], cells=_cells(p, cells, box))
             done += 1
         except Exception as e:  # noqa: BLE001  plane outside the cells or on an existing face
             skipped.append("%s=%g: %s" % (axis, c, str(e)[:80]))
@@ -93,7 +101,7 @@ def cut(p, x=(), y=(), z=(), planes=(), cells=None):
                for s, w in ((0.0, u), (1.0, u), (1.0, v))]
         d = p.DatumPlaneByThreePoints(point1=p.datums[ids[0]], point2=p.datums[ids[1]], point3=p.datums[ids[2]])
         try:
-            p.PartitionCellByDatumPlane(datumPlane=p.datums[d.id], cells=_cells(p, cells))
+            p.PartitionCellByDatumPlane(datumPlane=p.datums[d.id], cells=_cells(p, cells, box))
             done += 1
         except Exception as e:  # noqa: BLE001
             skipped.append("plane %r n %r: %s" % (_pt(q), list(nrm), str(e)[:80]))
@@ -146,8 +154,9 @@ def seed_bias(p, edges, fine, min_size, max_size):
 
 
 def mesh_report(p, node_limit=250000):
-    """Nodes, elements by type, cells by assigned technique, unmeshed cells, Abaqus quality checks,
-    and a warning above node_limit (Teaching Edition: 250 000; 0 turns it off)."""
+    """Nodes, elements by type, cells by assigned technique, unmeshed cells (count and a point on
+    each of the first 20), Abaqus quality checks, and a warning above node_limit (Teaching Edition:
+    250 000; 0 turns it off)."""
     types, tech = {}, {}
     for el in p.elements:
         types[str(el.type)] = types.get(str(el.type), 0) + 1
@@ -155,12 +164,9 @@ def mesh_report(p, node_limit=250000):
         k = "%s %s" % (p.getMeshControl(region=c, attribute=ELEM_SHAPE),
                        p.getMeshControl(region=c, attribute=TECHNIQUE))
         tech[k] = tech.get(k, 0) + 1
-    try:
-        unmeshed = len(p.getUnmeshedRegions().cells)
-    except Exception:  # noqa: BLE001  raises or returns None when every cell is meshed
-        unmeshed = 0
+    unmeshed = [_pt(c.pointOn[0]) for c in p.cells if not c.getElements()]  # None when unmeshed
     out = {"part": p.name, "nodes": len(p.nodes), "elements": len(p.elements), "types": types,
-           "techniques": tech, "unmeshed_cells": unmeshed}
+           "techniques": tech, "unmeshed_cells": len(unmeshed), "unmeshed_at": unmeshed[:20]}
     if len(p.elements):
         from abaqusConstants import ANALYSIS_CHECKS
         q = p.verifyMeshQuality(criterion=ANALYSIS_CHECKS)

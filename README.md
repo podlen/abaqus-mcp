@@ -24,7 +24,6 @@ Setup takes about 10 minutes. You need no administrator rights.
 - Windows 10 or 11 with Abaqus installed: Abaqus/CAE must open from the Start menu.
 - The Abaqus licence: if your Abaqus uses a university licence server, connect the university VPN before you use Abaqus, as you would to start Abaqus/CAE by hand.
 - A paid Claude plan (Pro, Max, Team or Enterprise) or an Anthropic Console account. The free claude.ai plan does not include Claude Code.
-- Access to this repository: it is private on GitHub. Ask the owner to add your GitHub account, or ask for a ZIP file of it.
 - An internet connection during setup (it downloads uv and Python packages).
 
 ### Step 1: install Claude Code
@@ -52,7 +51,7 @@ Put it in a folder you keep, for example `C:\Users\YourName\abaqus-mcp`. The fol
 
   ```powershell
   cd $HOME
-  git clone https://github.com/podlen/abaqus-mcp.git
+  git clone -b windows https://github.com/podlen/abaqus-mcp.git
   ```
 
   Git asks you to log in to GitHub the first time.

@@ -3,8 +3,9 @@
 Status: agreed. Owner: Enej. Branch: 005-lean-tools-native-partition.
 
 Goal: abaqus-mcp is a general Abaqus tool; its first heavy use is a project in another subject with
-models far more complex than bracket. Claude builds partitioned hex meshes inside Abaqus, with
-fewer tokens per job and fewer failed rounds. bracket must be easy (source: Enej, 2026-10-29).
+models far more complex than the test bracket of C8 (coursework geometry, kept outside this repo).
+Claude builds partitioned hex meshes inside Abaqus, with fewer tokens per job and fewer failed
+rounds. The bracket must be easy (source: Enej, 2026-10-29).
 
 ## Criteria
 C1. Compact `run_script` output. On success: `print_output` and `stdout`, each with runs of
@@ -56,21 +57,19 @@ C7. Skill. The abaqus-modelling skill gets a partition-and-mesh workflow (single
     `model_views` call with a list, `model_summary(only=...)`, `outputs` for result files, small
     PNGs). The tool docstrings say what C1-C6 return.
     check: user judges; C8 uses only the skill and the tool docstrings.
-C8. bracket natively. A fresh sonnet subagent gets the MCP tools, the skill, the original
-    `bracket.STEP`, `cells.json` (feature coordinates only), `post_abq.py`, `sites.py` and a brief
-    (load case, BCs, shell/core rule, section names, mesh sizes, from notes.md and model_abq.py).
-    `partition.py` and `model_abq.py` are withheld (source: Enej, 2026-10-29). It builds the ref_m case (h 1.0 mm in-plane, 1.0 mm in Y, E_core 136.2 MPa, C3D20R, F_x = +150 N)
-    with all partitions made in Abaqus (FreeCAD only for reading feature coordinates or
-    defeaturing), meshes it with 0 tet cells, runs it, and `sites.py` gives the bore, right wall,
-    U arch and block junction peaks within ±2 % of ref_m (−68.9, −36.6, 32.4, 22.4 MPa). The tab
-    site is excluded (clamp singularity, notes.md). A round is one `submit_job` of the full model; at
-    most 3 rounds. A miss after round 3, or any blocker, stops the run: Claude reports which part
-    failed (tool, skill or model) and Enej decides the fix. The agent reads no server source and calls
-    no private method.
-    check: `sites.py` output against the table in reference/notes.md; grep of the agent's transcript
-    (`subagents/*.jsonl`) for reads of `src/abaqus_mcp/` and for `_upload`, `t.get`, `Service(`; tool
-    tally from the same file (tokens summed over usage fields, calls by tool name) logged next to the
-    2026-10-28 run, no threshold.
+C8. Test bracket natively. A fresh sonnet subagent gets the MCP tools, the skill, the bracket STEP,
+    feature coordinates, the post-processing scripts and a brief (load case, BCs, shell/core rule,
+    section names, mesh sizes). The reference partition and model scripts are withheld (source:
+    Enej, 2026-10-29). It builds the reference case (C3D20R, linear static) with all partitions made
+    in Abaqus (FreeCAD only for reading feature coordinates or defeaturing), meshes it with 0 tet
+    cells, runs it, and the post script gives four stress sites within ±2 % of the reference run.
+    A round is one `submit_job` of the full model; at most 3 rounds. A miss after round 3, or any
+    blocker, stops the run: Claude reports which part failed (tool, skill or model) and Enej decides
+    the fix. The agent reads no server source and calls no private method.
+    check: site values against the reference table (coursework notes, outside this repo); grep of the
+    agent's transcript (`subagents/*.jsonl`) for reads of `src/abaqus_mcp/` and for `_upload`,
+    `t.get`, `Service(`; tool tally from the same file (tokens summed over usage fields, calls by tool
+    name) logged next to the 2026-10-28 run, no threshold.
 C9. Both transports. Pre-condition: VM up, `bin/abaqus-vpn up`. check: Linux `uv run pytest` passes;
     `ABAQUS_E2E=1 uv run pytest` over ssh passes the cantilever and `tests/test_e2e_partition.py`; inside the VM with the local transport
     `uv run pytest tests/test_windows.py tests/test_tools.py` and the new E2E file pass.
@@ -82,11 +81,8 @@ C9. Both transports. Pre-condition: VM up, `bin/abaqus-vpn up`. check: Linux `uv
 - Tool schemas: 7.8 kB for all eleven tools (measured with FastMCP `list_tools`).
 - `run_script` returned `stdout`, `stderr` and `print_output` each up to `max_output` (20 000 chars).
 - `model_views` writes three 1200x800 PNGs per call.
-- ref_m reference: reference/notes.md (2026-10-28), 74 755 nodes, 77 structured and 42 swept cells.
-- Tolerance ±2 % (source: Enej, 2026-10-29); the ref_m → ref_f refinement moved the sites 0.6-1.6 %.
-- ref_m survives only as the notes.md table; its .cae and results are gone.
-- `sites.py` reads only bore, clamp, z_patch and shell_xz from `cells.json`, plus `<job>/nodes.csv`
-  and `<job>/post.json` from `post_abq.py`.
+- Reference run: 74 755 nodes, 77 structured and 42 swept cells (2026-10-28).
+- Tolerance ±2 % (source: Enej, 2026-10-29); halving the reference mesh size moved the sites 0.6-1.6 %.
 - Probe 2026-10-29: in a `cae noGUI` script `sum` is the Abaqus one even without a star import;
   `import caeModules` alone makes `mdb.openStep` exist; `setMeshControls(technique=STRUCTURED)` on an
   unmappable cell raises `AbaqusException: Some regions cannot be Mapped.` and keeps the old control.
@@ -104,16 +100,15 @@ C9. Both transports. Pre-condition: VM up, `bin/abaqus-vpn up`. check: Linux `uv
   upsetting, summary 9 passed; `tests/test_e2e_partition.py` 2 passed. In the VM, local transport:
   `test_windows.py`, `test_tools.py`, `test_e2e_partition.py` 50 passed, 2 skipped. Live plug-in
   reinstalled in the VM (`vm/install-live-plugin.sh`).
-- 2026-10-29: C8 inputs in `bracket/native/` (STEP, `cells.json` without the cell list,
-  `post_abq.py`, `sites.py`, `run.json`, `brief.md`).
+- 2026-10-29: C8 inputs in a coursework folder outside this repo.
 - 2026-10-29: C8 run 1 (sonnet) blocked before any tool use of the new code: this session's server
   process dated from 2026-10-28 21:12; `/mcp` reconnect restarted it (08:09). The run also found a
-  brief error: the core box is X −10.65..1.35, Z 0..10 (fixed in brief.md).
+  brief error in the core box (fixed in the brief).
 - 2026-10-29: C8 run 2 (sonnet) BLOCKED at the mesh, 0 submit_job rounds. 636 cells (568 STRUCTURED,
-  68 SWEEP by `mesh_plan`, 0 tet), SHELL 512 / CORE 124 cells; whole-part `generateMesh` gave 0
+  68 SWEEP by `mesh_plan`, 0 tet), 512 shell / 124 core cells; whole-part `generateMesh` gave 0
   nodes with no message, per cell 205 unmeshed (seed-count conflicts). Causes the agent named:
-  whole-part cuts for the tab holes made 0.35 mm slivers in the bore wall (`cut(cells=...)` was not
-  used), and the full ring r + 1.35 tangent to the ligament box planes. Transcript: no source reads,
+  whole-part cuts for one zone's holes made 0.35 mm slivers in another zone (`cut(cells=...)` was not
+  used), and a full ring around a hole tangent to box planes. Transcript: no source reads,
   no private calls (grep hits were tool names). Tally: 45 run_script, 61 Bash, 4 Read, 1 set_project;
   14.7 M cache-read, 0.49 M cache-write, 0.27 M output tokens (2026-10-28 run: 44.5 M cache-read).
 - 2026-10-29: after run 2: `cut(box=...)`, `mesh_report` `unmeshed_at` (`Cell.getElements()` is None
@@ -121,21 +116,19 @@ C9. Both transports. Pre-condition: VM up, `bin/abaqus-vpn up`. check: Linux `uv
 - 2026-10-29: C8 run 3 (sonnet) BLOCKED after 2 of 3 rounds (plus 2 submit_job calls rejected for
   a missing `cae_file`). Variant A, 102 cells (67 STRUCTURED, 35 SWEEP), 88 283 nodes, 0 unmeshed:
   both rounds failed in the datacheck, "The volume of 122 elements is zero, small, or negative"
-  (about 90 at the bore U, where the straight walls meet the full ring at a tangent; about 30 at a
-  0.2 mm sliver next to the z_patch cut). Variant B (half ring): 15 bad elements, 2 tet cells; planar
-  cuts x = 27.35 / 30.65 on the 25-face bore shell cell raised "Feature creation failed". No sites.
+  (about 90 where straight walls meet a full ring at a tangent; about 30 at a 0.2 mm sliver).
+  Variant B (half ring): 15 bad elements, 2 tet cells; planar cuts on a 25-face shell cell raised
+  "Feature creation failed". No sites.
   Transcript: no source reads, no private calls. Tally: 75 run_script, 4 submit_job, 93 Bash,
   4 Read; 23.3 M cache-read, 1.37 M cache-write, 0.46 M output tokens; 4.6 h.
-- 2026-10-29: after run 3: `prism`, `tool_box`, `tool_cylinder`, `imprint` in abqmcp. Probe on
-  bracket (inset 1.35, Y 0.6..19.4, hole cylinders, bore ligament box, block box, min_volume 50):
-  valid, 4 cells, CORE 707.772 + 4531.017 = 5238.79 mm³ (FreeCAD reference 5238.79), SHELL 23.046 +
-  7764.925. ssh E2E `test_imprint` passed (volumes, sets kept through a later cut, no leftover parts).
-  Run 3 leftovers moved out of `native/`. Round counter for run 4 reset to 3 (source: user).
-- 2026-10-29: C8 run 4 (sonnet) MISS after 1 of 3 rounds (job completed, 1 increment). Sites vs ref_m:
-  bore −71.39 (−3.6 %), right wall −37.58 (−2.7 %), U arch 32.94 (+1.7 %), block junction 22.38
-  (−0.1 %); RP U1 2.180 mm (ref_m 2.176), clamp RF1 −150.00 N. 86 321 nodes, 242 cells (202
-  STRUCTURED, 40 SWEEP, 0 tet, 0 unmeshed). Route: FreeCAD defeaturing, import_solid, prism + imprint,
-  cut planes; the bore box (X 25.9..32.1) got y, z and two 45° diagonal planes through the bore axis.
-  Both missing sites lie in that box. Transcript: no source reads, no private calls. Tally: 24
-  run_script, 1 submit_job, 30 Bash, 4 Read; 8.53 M cache-read, 0.36 M cache-write, 0.18 M output
-  tokens; 18 min.
+- 2026-10-29: after run 3: `prism`, `tool_box`, `tool_cylinder`, `imprint` in abqmcp. Probe on the
+  bracket (profile inset, hole cylinders, two boxes, `min_volume`): valid, 4 cells, core volume equal
+  to the FreeCAD reference to 0.01 mm³. ssh E2E `test_imprint` passed (volumes, sets kept through a later cut, no leftover parts).
+  Run 3 leftovers moved out of the C8 folder. Round counter for run 4 reset to 3 (source: user).
+- 2026-10-29: C8 run 4 (sonnet) MISS after 1 of 3 rounds (job completed, 1 increment). Two sites
+  within ±2 % (+1.7 %, −0.1 %), two outside (−3.6 %, −2.7 %); displacement at the load point +0.2 %,
+  reaction equal to the load. 86 321 nodes, 242 cells (202 STRUCTURED, 40 SWEEP, 0 tet, 0 unmeshed).
+  Route: FreeCAD defeaturing, import_solid, prism + imprint, cut planes; the zone around the loaded
+  hole got two 45° diagonal planes through the hole axis, and both missing sites lie in that zone.
+  Transcript: no source reads, no private calls. Tally: 24 run_script, 1 submit_job, 30 Bash, 4 Read;
+  8.53 M cache-read, 0.36 M cache-write, 0.18 M output tokens; 18 min.

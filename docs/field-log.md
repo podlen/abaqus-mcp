@@ -3,14 +3,14 @@
 Problems met while using the server on real jobs, with the cause and an improvement idea.
 One entry per problem. "Cause" says whether the server, the script or the model was at fault.
 
-## 2026-10-28: bracket hex mesh (multi-cell STEP, C3D20R, static)
+## 2026-10-28: test bracket hex mesh (multi-cell STEP, C3D20R, static)
 
 1. **MCP tools missing from the session.** `claude mcp list` showed abaqus connected; ToolSearch found
    no abaqus tools. Cause: the server was registered at user scope at 20:52 (commit 61bd0b8), after the
    session had started (run 20:05-20:37); a client loads MCP servers at session start only.
    Workaround: a CLI calling `Service` directly. Fix: register first, then start the session (or `/mcp`).
-2. **No upload for input files.** `run_script` uploads the script only; the STEP, `cells.json` and
-   `run.json` went up through the private `_upload`. Cause: server gap.
+2. **No upload for input files.** `run_script` uploads the script only; the STEP and two JSON
+   input files went up through the private `_upload`. Cause: server gap.
    Idea: `run_script(..., inputs=[paths])`, or a `put_files(job, paths)` tool.
 3. **No download for result files.** Fetching a PNG or JSON written by a script needs `t.get`.
    Cause: server gap. Idea: `get_files(job, names)` into the host project dir.
@@ -42,17 +42,17 @@ One entry per problem. "Cause" says whether the server, the script or the model 
     direction. Also `p.edges.findAt(((pt,),))` returns a sequence without `getNodes`; `findAt(pt)` returns
     the edge. Cause: script. Idea: a `seed_bias(part, edges, fine_end_point, min, max)` helper.
 
-## 2026-10-29: bracket natively in Abaqus (spec 005 C8)
+## 2026-10-29: test bracket natively in Abaqus (spec 005 C8)
 
 12. **Native bracket partition left 205 of 636 cells unmeshed** (run 2).
-    Tab clamp-hole planes cut through the whole part and left 0.35 mm slivers in the bore wall; a full
-    ring r + 1.35 around the bore touched the ligament box planes at a tangent (zero-angle corners).
+    Planes for the holes in one zone cut through the whole part and left 0.35 mm slivers in another;
+    a full ring around a hole touched the planes of a box at a tangent (zero-angle corners).
     A whole-part `generateMesh` gave 0 nodes and no message. Cause: skill (no partition strategy) and
     tool (`cut` selected cells only by points). Fix: `cut(box=...)`, `mesh_report` `unmeshed_at`, skill
     rules on zone-local cuts, tangent points and slivers.
 13. **Plane cuts toward an inset shell/core boundary gave zero-volume elements** (run 3).
-    Variant A: 122 elements of zero or negative volume in the datacheck, at the tangent where the bore
-    U walls meet the ring and at a 0.2 mm sliver. Variant B: planar cuts on a 25-face bore shell cell
+    Variant A: 122 elements of zero or negative volume in the datacheck, at the tangent where straight
+    walls meet a ring and at a 0.2 mm sliver. Variant B: planar cuts on a 25-face shell cell
     raised "Feature creation failed" and left 2 tet cells. Cause: skill and tool (no way to build an
     offset region as a solid). Fix: `prism`, `tool_box`, `tool_cylinder`, `imprint`; the skill builds
     such a region as its own solid and uses plane cuts only for meshability.

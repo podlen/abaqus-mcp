@@ -131,3 +131,11 @@ C9. Both transports. Pre-condition: VM up, `bin/abaqus-vpn up`. check: Linux `uv
   valid, 4 cells, CORE 707.772 + 4531.017 = 5238.79 mm³ (FreeCAD reference 5238.79), SHELL 23.046 +
   7764.925. ssh E2E `test_imprint` passed (volumes, sets kept through a later cut, no leftover parts).
   Run 3 leftovers moved out of `native/`. Round counter for run 4 reset to 3 (source: user).
+- 2026-10-29: C8 run 4 (sonnet) MISS after 1 of 3 rounds (job completed, 1 increment). Sites vs ref_m:
+  bore −71.39 (−3.6 %), right wall −37.58 (−2.7 %), U arch 32.94 (+1.7 %), block junction 22.38
+  (−0.1 %); RP U1 2.180 mm (ref_m 2.176), clamp RF1 −150.00 N. 86 321 nodes, 242 cells (202
+  STRUCTURED, 40 SWEEP, 0 tet, 0 unmeshed). Route: FreeCAD defeaturing, import_solid, prism + imprint,
+  cut planes; the bore box (X 25.9..32.1) got y, z and two 45° diagonal planes through the bore axis.
+  Both missing sites lie in that box. Transcript: no source reads, no private calls. Tally: 24
+  run_script, 1 submit_job, 30 Bash, 4 Read; 8.53 M cache-read, 0.36 M cache-write, 0.18 M output
+  tokens; 18 min.
